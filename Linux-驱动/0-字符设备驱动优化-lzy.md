@@ -1,0 +1,1415 @@
+## 4-2-1 字符设备驱动优化
+
+
+
+### 内核定时器
+
+硬件为内核提供了一个系统定时器来计算流逝的时间（即基于未来时间点的计时方式，以当前时刻为计时开始的起点，以未来的某一时刻为计时的终点），内核只有在系统定时器的帮助下才能计算和管理时间，但是内核定时器的精度并不高，所以不能作为高精度定时器使用。并且内核定时器的运行没有周期性，到达计时终点后会自动关闭。如果要实现周期性定时，就要在定时处理函数中重新开启定时器。
+
+Linux 内核中使用 timer_list 结构体表示内核定时器，该结构体定义在“内核源码/include/linux/timer.h”文件中，具体内容如下
+
+```c
+struct timer_list {
+  struct hlist_node entry;
+  unsigned long expires;/* 定时器超时时间，单位是节拍数 */
+  void (*function)(struct timer_list *);/* 定时处理函数 */
+  u32 flags;
+#ifdef CONFIG_LOCKDEP
+  struct lockdep_map lockdep_map;
+#endif
+  ANDROID_KABI_RESERVE(1);
+  ANDROID_KABI_RESERVE(2);
+};
+```
+
+使用以下宏对 timer_list 结构体进行定义，_name 为定义的结构体名称，_function 为定时处理函数，该宏同样定义在文件 “内核源码/include/linux/timer.h”文件中，如下
+
+```c
+#define DEFINE_TIMER(_name, _function) \
+	struct timer_list _name = \ 
+		__TIMER_INITIALIZER(_function, 0)
+```
+
+例如可以使用以下代码对定时器和相应的定时处理函数进行定义
+
+```c
+DEFINE_TIMER(timer_test,function_test);//定义一个定时器
+```
+
+定时器定义完成之后还需要通过一系列的 API 函数来初始化此定时器，部分函数说明如下
+
+> void add_timer(struct timer_list *timer) 向 Linux 内核注册定时器，使用 add_timer 函数向内核注册定时器以后，定时器就会开始运行
+>
+> int del_timer(struct timer_list * timer) 删除一个定时器
+>
+> int mod_timer(struct timer_list *timer,unsigned long expires) 修改定时值，如果定时器还没有激活的话，
+>
+> mod_timer 函数会激活定时器
+
+在使用 add_timer()函数向 Linux 内核注册定时器之前，还需要设置定时时间，定时时间由 timer_list 结构体中的 expires 参数所确定，单位为节拍数，可以通过图形化界面设置系统节拍的频率，具体路径如下
+
+> -> Kernel Features
+>
+> ​	-> Timer frequency (<choice> [=y])
+
+![image-20240708193649268](https://woniumd.oss-cn-hangzhou.aliyuncs.com/aiot/luozhaoyong/image-20240708193649268.png)
+
+从上图可以看出可选的系统节拍率为 100Hz、250Hz、300Hz 和 1000Hz，默认情况下选择300Hz。
+
+通过全局变量 jiffies 来记录自系统启动以来产生节拍的总数。启动时，内核将该变量初始化为 0，此后，每次时钟中断处理程序都会增加该变量的值，一秒内 jiffes 增加的值为设置的系统节拍数，该变量定义在”内核源码/include/linux/jiffies.h”文件中（timer.h 文件中已经包含，不需要重复引用），具体定义如下
+
+```c
+extern u64 __cacheline_aligned_in_smp jiffies_64;
+extern unsigned long volatile __cacheline_aligned_in_smp __jiffy_arch_data jiffies;
+```
+
+其中 jiffies_64 用于 64 位系统，而 jiffies 用于 32 位系统。为了方便开发，Linux 内核还提供了几个 jiffies 和 ms、us、ns 之间的转换函数，如下
+
+> int jiffies_to_msecs(const unsigned long j) 将 jiffies 类型的参数 j 分别转换为对应的毫秒
+>
+> int jiffies_to_usecs(const unsigned long j) 将 jiffies 类型的参数 j 分别转换为对应的微秒
+>
+> u64 jiffies_to_nsecs(const unsigned long j) 将 jiffies 类型的参数 j 分别转换为对应的纳秒
+>
+> long msecs_to_jiffies(const unsigned int m) 将毫秒转换为 jiffies 类型
+>
+> long usecs_to_jiffies(const unsigned int u) 将微秒转换为 jiffies 类型
+>
+> unsigned long nsecs_to_jiffies(u64 n) 将纳秒转换为 jiffies 类型
+
+例如可以使用以下命令进行 3 秒钟的定时
+
+```c
+timer_test.expires = jiffies_64 + msecs_to_jiffies(3000)
+```
+
+实验代码
+
+```c
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/timer.h>
+
+static void function_test(struct timer_list *t);//定义function_test定时功能函数
+DEFINE_TIMER(timer_test,function_test);//定义一个定时器
+static void function_test(struct timer_list *t)
+{
+	printk("this is function test \n");
+	mod_timer(&timer_test,jiffies_64 + msecs_to_jiffies(5000));//使用mod_timer函数将定时时间设置为五秒后
+}
+static int __init timer_mod_init(void) //驱动入口函数
+{
+	timer_test.expires = jiffies_64 + msecs_to_jiffies(5000);//将定时时间设置为五秒后
+	add_timer(&timer_test);//添加一个定时器
+	return 0;
+}
+
+static void __exit timer_mod_exit(void) //驱动出口函数
+{
+	del_timer(&timer_test);//删除一个定时器
+	printk("module exit \n");
+}
+module_init(timer_mod_init);
+module_exit(timer_mod_exit);
+MODULE_LICENSE("GPL v2");
+MODULE_AUTHOR("woniu");
+```
+
+### 秒字符设备驱动
+
+1. 实现字符设备驱动框架，自动生成设备节点。
+
+2. 根据上一小节学到的知识，实现秒计时。
+
+3. 通过原子变量来记录递增的秒数，避免竞争的发生。
+
+4. 通过用户空间和内核空间的数据交换，将记录的秒数传递到应用空间，并通过应用程序打印出来。
+
+驱动代码
+
+```c
+#include <linux/module.h>
+#include <linux/init.h>
+#include <linux/fs.h>
+#include <linux/cdev.h>
+#include <linux/kdev_t.h>
+#include <linux/uaccess.h>
+#include <linux/atomic.h>
+
+struct device_test{
+    dev_t dev_num;  //设备号
+    int major ;  //主设备号
+    int minor ;  //次设备号
+    struct cdev cdev_test; // cdev
+    struct class *class;   //类
+    struct device *device; //设备
+	int sec; //秒
+};
+atomic64_t v = ATOMIC_INIT(0);//定义原子类型变量v，并定义为0
+static struct device_test dev1;
+static void function_test(struct timer_list *t);//定义function_test定时功能函数
+DEFINE_TIMER(timer_test,function_test);//定义一个定时器
+static void function_test(struct timer_list *t)
+{
+	atomic64_inc(&v);//原子变量v自增
+	dev1.sec = atomic_read(&v);//将读取到的原子变量v,赋值给sec
+	//printk("the sec is %d\n",dev1.sec);
+	mod_timer(&timer_test,jiffies_64 + msecs_to_jiffies(1000));//使用mod_timer函数将定时时间设置为一秒后
+}
+static int cdev_test_open(struct inode *inode, struct file *file)
+{
+    file->private_data=&dev1;//设置私有数据
+	add_timer(&timer_test);	//添加一个定时器
+    return 0;
+}
+
+/**从设备读取数据*/
+static ssize_t cdev_test_read(struct file *file, char __user *buf, size_t size, loff_t *off)
+{
+	if(copy_to_user(buf,&dev1.sec,sizeof(dev1.sec))){//使用copy_to_user函数将sec传递到应用层
+		printk("copy_to_user error \n");
+		return -1;
+	}
+    return 0;
+}
+
+static int cdev_test_release(struct inode *inode, struct file *file)
+{
+	del_timer(&timer_test);//删除一个定时器
+    return 0;
+}
+/*设备操作函数*/
+struct file_operations cdev_test_fops = {
+    .owner = THIS_MODULE, //将owner字段指向本模块，可以避免在模块的操作正在被使用时卸载该模块
+    .open = cdev_test_open, //将open字段指向chrdev_open(...)函数
+    .read = cdev_test_read, //将open字段指向chrdev_read(...)函数
+    .release = cdev_test_release, //将open字段指向chrdev_release(...)函数
+};
+static int __init timer_dev_init(void) //驱动入口函数
+{
+    /*注册字符设备驱动*/
+    int ret;
+    /*1 创建设备号*/
+    ret = alloc_chrdev_region(&dev1.dev_num, 0, 1, "alloc_name"); //动态分配设备号
+    if (ret < 0)
+    {
+       goto err_chrdev;
+    }
+    printk("alloc_chrdev_region is ok\n");
+
+    dev1.major = MAJOR(dev1.dev_num); //获取主设备号
+    dev1.minor = MINOR(dev1.dev_num); //获取次设备号
+
+    printk("major is %d \r\n", dev1.major); //打印主设备号
+    printk("minor is %d \r\n", dev1.minor); //打印次设备号
+     /*2 初始化cdev*/
+    dev1.cdev_test.owner = THIS_MODULE;
+    cdev_init(&dev1.cdev_test, &cdev_test_fops);
+
+    /*3 添加一个cdev,完成字符设备注册到内核*/
+   ret =  cdev_add(&dev1.cdev_test, dev1.dev_num, 1);
+    if(ret<0)
+    {
+        goto  err_chr_add;
+    }
+    /*4 创建类*/
+  dev1. class = class_create(THIS_MODULE, "test");
+    if(IS_ERR(dev1.class))
+    {
+        ret=PTR_ERR(dev1.class);
+        goto err_class_create;
+    }
+    /*5  创建设备*/
+  	dev1.device = device_create(dev1.class, NULL, dev1.dev_num, NULL, "test");
+    if(IS_ERR(dev1.device))
+    {
+        ret=PTR_ERR(dev1.device);
+        goto err_device_create;
+    }
+
+return 0;
+
+err_device_create:
+        class_destroy(dev1.class);                 //删除类
+
+err_class_create:
+       cdev_del(&dev1.cdev_test);                 //删除cdev
+
+err_chr_add:
+        unregister_chrdev_region(dev1.dev_num, 1); //注销设备号
+
+err_chrdev:
+        return ret;
+}
+
+static void __exit timer_dev_exit(void) //驱动出口函数
+{
+    /*注销字符设备*/
+    unregister_chrdev_region(dev1.dev_num, 1); //注销设备号
+    cdev_del(&dev1.cdev_test);                 //删除cdev
+    device_destroy(dev1.class, dev1.dev_num);       //删除设备
+    class_destroy(dev1.class);                 //删除类
+}
+module_init(timer_dev_init);
+module_exit(timer_dev_exit);
+MODULE_LICENSE("GPL v2");
+MODULE_AUTHOR("woniu");
+```
+
+调用代码
+
+```c
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+int main(int argc,char *argv[]){
+	int fd;//定义int类型的文件描述符fd
+	int count;//定义int类型记录秒数的变量count
+	fd = open("/dev/test",O_RDWR);//使用open()函数以可读可写的方式打开设备文件
+	while(1)
+	{
+		read(fd,&count,sizeof(count));//使用read函数读取内核传递来的秒数
+		printf("num is %d\n",count);
+		sleep(1);
+	}
+	return 0;
+}
+```
+
+### Linux 内核打印
+
+由于 buildroot 系统已经设置了相应的打印等级，所以驱动的相关打印都能正常显示在串口终端上，如果将实验系统换成了 ubuntu，然后加载同样的驱动，会发现打印信息不见了，这一现象的基本原因就是内核打印等级不同，那打印等级是如何修改的呢.
+
+#### 方法一：dmesg 命令
+
+在终端使用 dmesg 命令可以获取内核打印信息，该命令的具体使用方法如下:
+
+**dmesg 命令**
+
+> **英文全称：**display message（显示信息）
+>
+> **作用：**
+>
+> kernel 会将打印信息存储在 ring buffer 中。可以利用 dmesg 命令来查看内核打印信息。。
+>
+> **常用参数****:** 
+>
+> -C，--clear 清除内核环形缓冲区
+>
+> -c，—-read-clear 读取并清除所有消息
+>
+> -T，--显示成日期时间格式
+>
+> **提示：**dmesg 命令也可以与 grep 命令组合使用。如查找待用 usb 关键字的打印信息，就可以
+>
+> 使用如下命令:dmseg | grep usb
+
+#### 方法二：查看 kmsg 文件
+
+内核所有的打印信息都会输出到循环缓冲区 'log_buf'，为了能够方便的在用户空间读取内核打印信息，Linux 内核驱动将该循环缓冲区映射到了/proc 目录下的文件节点 kmsg。通过cat 或者其他应用程序读取 Log Buffer 的时候可以不断的等待新的 log，所以访问/proc/kmsg的方式适合长时间的读取 log，一旦有新的 log 就可以被打印出来。
+
+首先使用以下命令读取 kmsg 文件，在没有新的内核打印信息时会阻塞，如下图所示：
+
+> cat /proc/kmsg
+
+![image-20240708194507240](https://woniumd.oss-cn-hangzhou.aliyuncs.com/aiot/luozhaoyong/image-20240708194507240.png)
+
+然后在该设备的其他终端加载任意有打印信息的驱动文件（这里使用的是 ssh）
+
+在串口终端中可以看到对应驱动的打印信息就被打印了出来:
+
+![image-20240708194546097](https://woniumd.oss-cn-hangzhou.aliyuncs.com/aiot/luozhaoyong/image-20240708194546097.png)
+
+#### 方法三：调整内核打印等级
+
+内核的日志打印由相应的打印等级来控制，可以通过调整内核打印等级来控制打印日志的输出。使用以下命令查看当前默认打印等级，如下图
+
+> cat /proc/sys/kernel/printk
+
+![image-20240708194620458](https://woniumd.oss-cn-hangzhou.aliyuncs.com/aiot/luozhaoyong/image-20240708194620458.png)
+
+可以看到内核打印等级由四个数字所决定，“7 4 1 7” 分别对应 console_loglevel、default_message_loglevel、minimum_console_loglevel、default_console_loglevel，具体类型说明如下表
+
+> console_log level				 		只有当 printk 打印消息的 log 优先级高于 console_loglevel 时，才能输出到终端上
+>
+> default_message_log level      	printk 打印消息时默认的 log 等级
+>
+> minimum_console_log level		console_log level 可以被设置的最小值
+>
+> default_console_log level 			console_log level 的缺省值
+
+上面的“7 4 1 7”意味着只有优先级高于 KERN_DEBUG(7)的打印消息才能输出到终端，在“内核源码/include/linux/kern_levels.h”文件中对于文件打印等级进行了如下打印等级定义
+
+```c
+#define KERN_EMERG KERN_SOH "0" /* system is unusable */
+#define KERN_ALERT KERN_SOH "1" /* action must be taken immediately */
+#define KERN_CRIT KERN_SOH "2" /* critical conditions */
+#define KERN_ERR KERN_SOH "3" /* error conditions */
+#define KERN_WARNING KERN_SOH "4" /* warning conditions */
+#define KERN_NOTICE KERN_SOH "5" /* normal but significant condition */
+#define KERN_INFO KERN_SOH "6" /* informational */
+#define KERN_DEBUG KERN_SOH "7" /* debug-level messages */
+```
+
+printk 在打印信息前，可以加入相应的打印等级宏定义，具体格式如下所示
+
+> printk(打印等级 "打印信息")
+
+接下来将使用以下驱动例程进行实际的打印等级测试:
+
+```c
+static int __init helloworld_init(void)
+{
+  printk(KERN_EMERG " 0000 KERN_EMERG\n");
+  printk(KERN_ALERT " 1111 KERN_ALERT\n");
+  printk(KERN_CRIT " 2222 KERN_CRIT\n");
+  printk(KERN_ERR " 3333 KERN_ERR\n");
+  printk(KERN_WARNING " 4444 KERN_WARNING\n");
+  printk(KERN_NOTICE " 5555 KERN_NOTICE\n");
+  printk(KERN_INFO " 6666 KERN_INFO\n");
+  printk(KERN_DEBUG " 7777 KERN_DEBUG\n");
+  printk(" 8888 no_fix\n");
+  return 0;
+}
+```
+
+加载该驱动之后，第 5-11 行 0-6 等级的打印信息就被打印了出来，第 13 行由于没有设置打印等级，所以会被赋予默认打印等级 4，高于 console_loglevel 打印等级，所以也会被打印出来，最后只有第 12 行打印等级为 7 的信息，和 console_loglevel 打印等级相同，所以不会被打印出来，如下图
+
+![image-20240708194918461](https://woniumd.oss-cn-hangzhou.aliyuncs.com/aiot/luozhaoyong/image-20240708194918461.png)
+
+然后使用以下命令将 console_loglevel 打印等级设置为 4.
+
+> echo 4 4 1 7 > /proc/sys/kernel/printk
+
+卸载驱动之后，再一次加载驱动，发现只有打印等级高于 4 的相关信息被打印了出来
+
+![image-20240708194954256](https://woniumd.oss-cn-hangzhou.aliyuncs.com/aiot/luozhaoyong/image-20240708194954256.png)
+
+#### 修改默认的日志级别
+
+在内核配置菜单中
+
+>  Kernel hacking  ---> 
+>
+>  printk and dmesg options  --->
+
+![image-20240821143253868](https://woniumd.oss-cn-hangzhou.aliyuncs.com/aiot/luozhaoyong/image-20240821143253868.png)
+
+### llseek 定位设备驱动
+
+相信经过了前面章节的学习，大家已经对内核空间与用户空间的数据交互很是熟悉，但在之前的例子中都是对字符串的全部内容进行读写，假如现在有这样一个场景，将两个字符串依次进行写入，并对写入完成的字符串进行读取，如果仍采用之前的方式，第二次的写入值会覆盖第一次写入值，那要如何来实现上述功能呢？这就要轮到 llseek 出场了。
+
+在应用程序中使用 lseek 函数进行读写位置的调整，该函数的具体使用说明如下
+
+**lseek 函数**
+
+> **函数原型：**
+>
+> off_t lseek(int fd, off_t offset, int whence);
+>
+> **头文件**：
+>
+> \#include <sys/types.h>
+>
+> \#include <unistd.h>
+>
+> **函数作用：**
+>
+> 移动文件的读写位置。
+>
+> **参数含义：**
+>
+> fd: 文件描述符；
+>
+> off_t offset: 偏移量，单位是字节的数量，可以正负，如果是负值表示向前移动；如果是正值，表示向后移动。
+>
+> whence：当前位置的基点，可以使用以下三组值。
+>
+> SEEK_SET：相对于文件开头
+>
+> SEEK_CUR:相对于当前的文件读写指针位置
+>
+> SEEK_END:相对于文件末尾
+>
+> **函数返回值：**成功返回当前位移大小，失败返回-1
+
+函数使用示例：
+
+把文件位置指针设置为 5：
+
+> lseek(fd,5,SEEK_SET);
+
+把文件位置设置成文件末尾
+
+> lseek(fd,0,SEEK_END);
+
+确定当前的文件位置：
+
+> lseek(fd,0,SEEK_CUR);
+
+驱动代码
+
+```c
+#include <linux/module.h>
+#include <linux/init.h>
+#include <linux/fs.h>
+#include <linux/cdev.h>
+#include <linux/kdev_t.h>
+#include <linux/uaccess.h>
+#include <linux/atomic.h>
+#define BUFSIZE 1024//设置最大偏移量为1024
+static char mem[BUFSIZE] = {0};//设置数据存储数组mem
+struct device_test{
+    dev_t dev_num;  //设备号
+    int major ;  //主设备号
+    int minor ;  //次设备号
+    struct cdev cdev_test; // cdev
+    struct class *class;   //类
+    struct device *device; //设备
+    char kbuf[32];
+};
+static struct device_test dev1;
+static int cdev_test_open(struct inode *inode, struct file *file)
+{
+    file->private_data=&dev1;//设置私有数据
+
+    return 0;
+}
+
+
+/*从设备读取数据*/
+static ssize_t cdev_test_read(struct file *file, char __user *buf, size_t size, loff_t *off)
+{
+	loff_t p = *off;//将读取数据的偏移量赋值给loff_t类型变量p
+	int i;
+	size_t count = size;
+	if(p > BUFSIZE){
+		return 0; 
+	}
+	if(count > BUFSIZE - p){
+		count  = BUFSIZE - p;
+	}
+	if(copy_to_user(buf,mem+p,count)){//将mem中的值写入buf，并传递到用户空间
+		printk("copy_to_user error \n");
+		return -1;
+	}
+	for(i=0;i<20;i++){
+		printk("buf[%d] is %c\n",i,mem[i]);//将mem中的值打印出来
+	}
+	printk("mem is %s,p is %llu,count is %ld\n",mem+p,p,count);
+	*off = *off + count;//更新偏移值
+    return count;
+}
+/*向设备写入数据函数*/
+static ssize_t cdev_test_write(struct file *file, const char __user *buf, size_t size, loff_t *off)
+{
+
+    loff_t p = *off;//将读取数据的偏移量赋值给loff_t类型变量p
+    size_t count = size;
+    if(p > BUFSIZE){
+        return 0;
+    }
+    if(count > BUFSIZE - p){
+        count  = BUFSIZE - p;
+    }
+	if(copy_from_user(mem+p,buf,count)){//将buf中的值，从用户空间传递到内核空间
+ 		printk("copy_to_user error \n");
+        return -1;
+    }
+	printk("mem is %s,p is %llu\n",mem+p,p);//打印写入的值
+	*off = *off + count;//更新偏移值
+    return count;
+}
+
+static int cdev_test_release(struct inode *inode, struct file *file)
+{
+
+    return 0;
+}
+static loff_t cdev_test_llseek(struct file *file, loff_t offset, int whence)
+{
+	loff_t new_offset;//定义loff_t类型的新的偏移值
+	switch(whence)//对lseek函数传递的whence参数进行判断
+	{
+		case SEEK_SET:
+			if(offset < 0){
+				return -EINVAL;
+				break;
+			}
+			if(offset > BUFSIZE){
+                return -EINVAL;
+                break;	
+			}
+			new_offset = offset;//如果whence参数为SEEK_SET，则新偏移值为offset
+			break;
+		case SEEK_CUR:
+            if(file->f_pos + offset > BUFSIZE){
+                return -EINVAL;
+                break;
+            }
+            if(file->f_pos + offset < 0){
+                return -EINVAL;
+                break;
+            }
+            new_offset = file->f_pos + offset;//如果whence参数为SEEK_CUR，则新偏移值为file->f_pos + offset，file->f_pos为当前的偏移值
+			break;			
+		case SEEK_END:
+            if(file->f_pos + offset < 0){
+                return -EINVAL;
+                break;
+            }
+            new_offset = BUFSIZE + offset;//如果whence参数为SEEK_END，则新偏移值为BUFSIZE + offset，BUFSIZE为最大偏移量
+			break;
+		default:
+			break;
+	}
+	file->f_pos = new_offset;//更新file->f_pos偏移值
+	return new_offset;
+}
+/*设备操作函数*/
+struct file_operations cdev_test_fops = {
+    .owner = THIS_MODULE, //将owner字段指向本模块，可以避免在模块的操作正在被使用时卸载该模块
+    .open = cdev_test_open, //将open字段指向chrdev_open(...)函数
+    .read = cdev_test_read, //将open字段指向chrdev_read(...)函数
+    .write = cdev_test_write, //将open字段指向chrdev_write(...)函数
+    .release = cdev_test_release, //将open字段指向chrdev_release(...)函数
+	.llseek = cdev_test_llseek,
+};
+static int __init timer_dev_init(void) //驱动入口函数
+{
+    /*注册字符设备驱动*/
+    int ret;
+    /*1 创建设备号*/
+    ret = alloc_chrdev_region(&dev1.dev_num, 0, 1, "alloc_name"); //动态分配设备号
+    if (ret < 0)
+    {
+       goto err_chrdev;
+    }
+    printk("alloc_chrdev_region is ok\n");
+
+    dev1.major = MAJOR(dev1.dev_num); //获取主设备号
+    dev1.minor = MINOR(dev1.dev_num); //获取次设备号
+
+    printk("major is %d \r\n", dev1.major); //打印主设备号
+    printk("minor is %d \r\n", dev1.minor); //打印次设备号
+     /*2 初始化cdev*/
+    dev1.cdev_test.owner = THIS_MODULE;
+    cdev_init(&dev1.cdev_test, &cdev_test_fops);
+
+    /*3 添加一个cdev,完成字符设备注册到内核*/
+   ret =  cdev_add(&dev1.cdev_test, dev1.dev_num, 1);
+    if(ret<0)
+    {
+        goto  err_chr_add;
+    }
+    /*4 创建类*/
+  dev1. class = class_create(THIS_MODULE, "test");
+    if(IS_ERR(dev1.class))
+    {
+        ret=PTR_ERR(dev1.class);
+        goto err_class_create;
+    }
+    /*5  创建设备*/
+  	dev1.device = device_create(dev1.class, NULL, dev1.dev_num, NULL, "test");
+    if(IS_ERR(dev1.device))
+    {
+        ret=PTR_ERR(dev1.device);
+        goto err_device_create;
+    }
+
+return 0;
+
+err_device_create:
+        class_destroy(dev1.class);                 //删除类
+
+err_class_create:
+       cdev_del(&dev1.cdev_test);                 //删除cdev
+
+err_chr_add:
+        unregister_chrdev_region(dev1.dev_num, 1); //注销设备号
+
+err_chrdev:
+        return ret;
+}
+
+static void __exit timer_dev_exit(void) //驱动出口函数
+{
+    /*注销字符设备*/
+    unregister_chrdev_region(dev1.dev_num, 1); //注销设备号
+    cdev_del(&dev1.cdev_test);                 //删除cdev
+    device_destroy(dev1.class, dev1.dev_num);       //删除设备
+    class_destroy(dev1.class);                 //删除类
+}
+module_init(timer_dev_init);
+module_exit(timer_dev_exit);
+MODULE_LICENSE("GPL v2");
+MODULE_AUTHOR("woniu");
+```
+
+调用代码
+
+```c
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+int main(int argc,char *argv[]){
+	int fd;//定义int类型文件描述符
+	unsigned int off;//定义读写偏移位置
+	char readbuf[13] = {0};//定义读取缓冲区readbuf
+	char readbuf1[19] = {0};//定义读取缓冲区readbuf1
+
+	fd = open("/dev/test",O_RDWR,666);//打开/dev/test设备
+	if(fd < 0 ){
+		printf("file open error \n");
+	}
+	write(fd,"hello world",13);//向fd写入数据hello world
+	off = lseek(fd,0,SEEK_CUR);//读取当前位置的偏移量
+	printf("off is %d\n",off);
+
+    off = lseek(fd,0,SEEK_SET);//将偏移量设置为0
+    printf("off is %d\n",off);
+
+	read(fd,readbuf,sizeof(readbuf));//将写入的数据读取到readbuf缓冲区
+	printf("read is %s\n",readbuf);
+
+    off = lseek(fd,0,SEEK_CUR);//读取当前位置的偏移量
+    printf("off is %d\n",off);
+
+	off = lseek(fd,-1,SEEK_CUR);//将当前位置的偏移量向前挪动一位
+	printf("off is %d\n",off);
+
+    write(fd,"Linux",6);//向fd写入数据Linux
+    off = lseek(fd,0,SEEK_CUR);//读取当前位置的偏移量
+    printf("off is %d\n",off);
+
+    off = lseek(fd,0,SEEK_SET);//将偏移量设置为0
+    printf("off is %d\n",off);
+
+    read(fd,readbuf1,sizeof(readbuf1));//将写入的数据读取到readbuf1缓冲区
+    printf("read is %s\n",readbuf1);
+
+    off = lseek(fd,0,SEEK_CUR);//读取当前位置的偏移量
+    printf("off is %d\n",off);
+	close(fd);
+	return 0;
+}
+```
+
+### IOCTL 驱动传参
+
+用户如果要对外设进行操作，对应的设备驱动不仅要具备读写的能力，还需要对硬件进行控制。以点亮 LED 灯驱动实验为例，应用程序通过向内核空间写入 1 和 0 从而控制 LED 灯的亮灭，但是读写操作主要是数据流对数据进行操作，而一些复杂的控制通常需要非数据操作，这时本章节要学习的 ioctl 函数就闪耀登场了。
+
+ioctl 是设备驱动程序中用来控制设备的接口函数，一个字符设备驱动通常需要实现设备的打开、关闭、读取、写入等功能，而在一些需要细分的情况下，就需要扩展新的功能，通常以增设 ioctl()命令的方式来实现。
+
+下面将从应用层和驱动函数两个方面来对 ioctl 函数进行学习。
+
+#### 应用层
+
+> **函数原型：**
+>
+> int ioctl(int fd, unsigned int cmd, unsigned long args);
+>
+> **头文件**：
+>
+> \#include <sys/ioctl.h>
+>
+> **函数作用：**
+>
+> 用于向设备发送控制和配置命令。
+>
+> **参数含义：**
+>
+> fd ：是用户程序打开设备时返回的文件描述符
+>
+> cmd ：是用户程序对设备的控制命令，
+>
+> args：应用程序向驱动程序下发的参数，如果传递的参数为指针类型，则可以接收驱动向
+>
+> 用户空间传递的数据（在下面的实验中会进行使用）
+
+上述三个参数中，最重要的是第二个 cmd 参数，为 unsigned int 类型，为了高效的使用cmd 参数传递更多的控制信息，一个 unsigned int cmd 被拆分为了 4 段，每一段都有各自的意义，unsigned int cmd 位域拆分如下：
+
+> cmd[31:30]—数据（args）的传输方向（读写）
+>
+> cmd[29:16]—数据（args）的大小
+>
+> cmd[15:8]—>命令的类型，可以理解成命令的密钥，一般为 ASCII 码（0-255 的一个字符，有部分字符已经被占用，每个字符的序号段可能部分被占用）
+>
+> cmd[7:0] —>命令的序号，是一个 8bits 的数字（序号，0-255 之间）
+
+cmd 参数由 ioctl 合成宏定义得到**，四个合成宏定义如下所示：定义一个命令，但是不需要参数**：
+
+\#define \_IO(type,nr)  _IOC(_IOC_NONE,(type),(nr),0)
+
+定义一个命令，应用程序从驱动程序读参数：
+
+> \#define \_IOR(type,nr,size)   _IOC(_IOC_READ,(type),(nr),(_IOC_TYPECHECK(size)))
+
+定义一个命令，应用程序向驱动程序写参数：
+
+> \#define \_IOW(type,nr,size)   _IOC(_IOC_WRITE,(type),(nr),(_IOC_TYPECHECK(size)))
+
+定义一个命令，参数是双向传递的：
+
+> \#define \_IOWR(type,nr,size)   _IOC(_IOC_READ|_IOC_WRITE,(type),(nr),(_IOC_TYPECHECK(size)))
+
+宏定义参数说明如下所示：
+
+> type：命令的类型，一般为一个 ASCII 码值，一个驱动程序一般使用一个 type
+>
+> nr：该命令下序号。一个驱动有多个命令，一般他们的 type，序号不同
+>
+> size：args 的类型
+
+例如可以使用以下代码定义不需要参数、向驱动程序写参数、向驱动程序读参数三个宏：
+
+> \#define CMD_TEST0 _IO('L',0)
+>
+> \#define CMD_TEST1 _IOW('L',1,int)
+>
+> \#define CMD_TEST2 _IOR('L',2,int)
+
+#### 驱动函数
+
+应用程序中 ioctl 函数会调用 file_operation 结构体中的 unlocked_ioctl 接口，接口定义如下
+
+```c
+long (*unlocked_ioctl) (struct file *file , unsigned int cmd, unsigned long arg);
+```
+
+参数说明如下所示：
+
+>file：文件描述符。
+>
+>cmd：与应用程序的 cmd 参数对应，在驱动程序中对传递来的 cmd 参数进行判断从而做出不同的动作。
+>
+>arg：与应用程序的 arg 参数对应，从而实现内核空间和用户空间参数的传递。
+
+驱动代码
+
+```c
+#include <linux/module.h>
+#include <linux/init.h>
+#include <linux/fs.h>
+#include <linux/cdev.h>
+#include <linux/kdev_t.h>
+#include <linux/uaccess.h>
+#define CMD_TEST0 _IO('L',0)
+#define CMD_TEST1 _IOW('L',1,int)
+#define CMD_TEST2 _IOR('L',2,int)
+
+struct device_test{
+
+    dev_t dev_num;  //设备号
+     int major ;  //主设备号a
+    int minor ;  //次设备号
+    struct cdev cdev_test; // cdev
+    struct class *class;   //类
+    struct device *device; //设备
+    char kbuf[32];
+};
+static struct device_test dev1;
+
+
+static long cdev_test_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	int val;//定义int类型向应用空间传递的变量val
+	switch(cmd){
+        case CMD_TEST0:
+            printk("this is CMD_TEST0\n");
+            break;		
+        case CMD_TEST1:
+            printk("this is CMD_TEST1\n");
+			printk("arg is %ld\n",arg);//打印应用空间传递来的arg参数
+            break;
+        case CMD_TEST2:
+			val = 1;//将要传递的变量val赋值为1
+            printk("this is CMD_TEST2\n");
+			if(copy_to_user((int *)arg,&val,sizeof(val)) != 0){//通过copy_to_user向用户空间传递数据
+				printk("copy_to_user error \n");	
+			}
+            break;			
+	default:
+			break;
+	}
+	return 0;
+}
+/*设备操作函数*/
+struct file_operations cdev_test_fops = {
+    .owner = THIS_MODULE, //将owner字段指向本模块，可以避免在模块的操作正在被使用时卸载该模块
+	.unlocked_ioctl = cdev_test_ioctl,
+};
+static int __init timer_dev_init(void) //驱动入口函数
+{
+    /*注册字符设备驱动*/
+    int ret;
+    /*1 创建设备号*/
+    ret = alloc_chrdev_region(&dev1.dev_num, 0, 1, "alloc_name"); //动态分配设备号
+    if (ret < 0)
+    {
+       goto err_chrdev;
+    }
+    printk("alloc_chrdev_region is ok\n");
+
+    dev1.major = MAJOR(dev1.dev_num); //获取主设备号
+    dev1.minor = MINOR(dev1.dev_num); //获取次设备号
+
+    printk("major is %d \r\n", dev1.major); //打印主设备号
+    printk("minor is %d \r\n", dev1.minor); //打印次设备号
+     /*2 初始化cdev*/
+    dev1.cdev_test.owner = THIS_MODULE;
+    cdev_init(&dev1.cdev_test, &cdev_test_fops);
+
+    /*3 添加一个cdev,完成字符设备注册到内核*/
+   ret =  cdev_add(&dev1.cdev_test, dev1.dev_num, 1);
+    if(ret<0)
+    {
+        goto  err_chr_add;
+    }
+    /*4 创建类*/
+  dev1. class = class_create(THIS_MODULE, "test");
+    if(IS_ERR(dev1.class))
+    {
+        ret=PTR_ERR(dev1.class);
+        goto err_class_create;
+    }
+    /*5  创建设备*/
+  	dev1.device = device_create(dev1.class, NULL, dev1.dev_num, NULL, "test");
+    if(IS_ERR(dev1.device))
+    {
+        ret=PTR_ERR(dev1.device);
+        goto err_device_create;
+    }
+
+return 0;
+
+err_device_create:
+        class_destroy(dev1.class);                 //删除类
+
+err_class_create:
+       cdev_del(&dev1.cdev_test);                 //删除cdev
+
+err_chr_add:
+        unregister_chrdev_region(dev1.dev_num, 1); //注销设备号
+
+err_chrdev:
+        return ret;
+}
+
+static void __exit timer_dev_exit(void) //驱动出口函数
+{
+    /*注销字符设备*/
+    unregister_chrdev_region(dev1.dev_num, 1); //注销设备号
+    cdev_del(&dev1.cdev_test);                 //删除cdev
+    device_destroy(dev1.class, dev1.dev_num);       //删除设备
+    class_destroy(dev1.class);                 //删除类
+}
+module_init(timer_dev_init);
+module_exit(timer_dev_exit);
+MODULE_LICENSE("GPL v2");
+MODULE_AUTHOR("woniu");
+```
+
+调用代码
+
+```c
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
+#include <string.h>
+
+#define CMD_TEST0 _IO('L',0)
+#define CMD_TEST1 _IOW('L',1,int)
+#define CMD_TEST2 _IOR('L',2,int)
+
+int main(int argc,char *argv[]){
+
+	int fd;//定义int类型的文件描述符fd
+	int val;//定义int类型的传递参数val
+	fd = open("/dev/test",O_RDWR);//打开test设备节点
+	if(fd < 0){
+		printf("file open fail\n");
+	}
+	if(!strcmp(argv[1], "write")){
+		ioctl(fd,CMD_TEST1,1);//如果第二个参数为write，向内核空间写入1
+	}
+	else if(!strcmp(argv[1], "read")){
+		ioctl(fd,CMD_TEST2,&val);//如果第二个参数为read，则读取内核空间传递向用户空间传递的值
+		printf("val is %d\n",val);
+
+    }
+	close(fd);
+}
+```
+
+### IOCTL 地址传参
+
+在上一章节中对 ioctl 基础知识进行了学习，并通过 ioctl 进行了驱动传参实验，在本章节将以传递结构体为例，进行地址传参实验，从而加深大家对 ioctl 的认识。
+
+驱动代码
+
+```c
+#include <linux/module.h>
+#include <linux/init.h>
+#include <linux/fs.h>
+#include <linux/cdev.h>
+#include <linux/kdev_t.h>
+#include <linux/uaccess.h>
+
+#define CMD_TEST0 _IOW('L',0,int)
+struct args{
+	int a;
+	int b;
+	int c;
+};
+struct device_test{
+
+    dev_t dev_num;  //设备号
+     int major ;  //主设备号
+    int minor ;  //次设备号
+    struct cdev cdev_test; // cdev
+    struct class *class;   //类
+    struct device *device; //设备
+    char kbuf[32];
+};
+static struct device_test dev1;
+
+static long cdev_test_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	struct args test;  
+	switch(cmd){
+        case CMD_TEST0:
+			if(copy_from_user(&test,(int *)arg,sizeof(test)) != 0){
+				printk("copy_from_user error\n");
+			}
+			printk("a = %d\n",test.a);
+  			printk("b = %d\n",test.b);
+  	  		printk("c = %d\n",test.c);
+            break;			
+	default:
+			break;
+	}
+	return 0;
+}
+/*设备操作函数*/
+struct file_operations cdev_test_fops = {
+    .owner = THIS_MODULE, //将owner字段指向本模块，可以避免在模块的操作正在被使用时卸载该模块
+	.unlocked_ioctl = cdev_test_ioctl,
+};
+static int __init timer_dev_init(void) //驱动入口函数
+{
+    /*注册字符设备驱动*/
+    int ret;
+    /*1 创建设备号*/
+    ret = alloc_chrdev_region(&dev1.dev_num, 0, 1, "alloc_name"); //动态分配设备号
+    if (ret < 0)
+    {
+       goto err_chrdev;
+    }
+    printk("alloc_chrdev_region is ok\n");
+
+    dev1.major = MAJOR(dev1.dev_num); //获取主设备号
+    dev1.minor = MINOR(dev1.dev_num); //获取次设备号
+
+    printk("major is %d \r\n", dev1.major); //打印主设备号
+    printk("minor is %d \r\n", dev1.minor); //打印次设备号
+     /*2 初始化cdev*/
+    dev1.cdev_test.owner = THIS_MODULE;
+    cdev_init(&dev1.cdev_test, &cdev_test_fops);
+
+    /*3 添加一个cdev,完成字符设备注册到内核*/
+   ret =  cdev_add(&dev1.cdev_test, dev1.dev_num, 1);
+    if(ret<0)
+    {
+        goto  err_chr_add;
+    }
+    /*4 创建类*/
+  dev1. class = class_create(THIS_MODULE, "test");
+    if(IS_ERR(dev1.class))
+    {
+        ret=PTR_ERR(dev1.class);
+        goto err_class_create;
+    }
+    /*5  创建设备*/
+  	dev1.device = device_create(dev1.class, NULL, dev1.dev_num, NULL, "test");
+    if(IS_ERR(dev1.device))
+    {
+        ret=PTR_ERR(dev1.device);
+        goto err_device_create;
+    }
+
+return 0;
+
+err_device_create:
+        class_destroy(dev1.class);                 //删除类
+
+err_class_create:
+       cdev_del(&dev1.cdev_test);                 //删除cdev
+
+err_chr_add:
+        unregister_chrdev_region(dev1.dev_num, 1); //注销设备号
+
+err_chrdev:
+        return ret;
+}
+
+static void __exit timer_dev_exit(void) //驱动出口函数
+{
+    /*注销字符设备*/
+    unregister_chrdev_region(dev1.dev_num, 1); //注销设备号
+    cdev_del(&dev1.cdev_test);                 //删除cdev
+    device_destroy(dev1.class, dev1.dev_num);       //删除设备
+    class_destroy(dev1.class);                 //删除类
+}
+module_init(timer_dev_init);
+module_exit(timer_dev_exit);
+MODULE_LICENSE("GPL v2");
+MODULE_AUTHOR("woniu");
+```
+
+调用代码
+
+```c
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
+
+#define CMD_TEST0 _IOW('L',0,int)
+struct args{//定义要传递的结构体
+	int a;
+int b;
+	int c;
+};
+int main(int argc,char *argv[]){
+	int fd;//定义int类型文件描述符
+	struct args test;//定义args类型的结构体变量test
+	test.a = 1;
+	test.b = 2;
+	test.c = 3;
+	fd = open("/dev/test",O_RDWR,0777);//打开/dev/test设备
+	if(fd < 0){
+		printf("file open error \n");
+	}
+	ioctl(fd,CMD_TEST0,&test);//使用ioctl函数传递结构体变量test地址
+	close(fd);
+}
+```
+
+### 封装驱动 API 接口
+
+随着 ioctl 练习的结束，字符设备驱动框架相关的知识也就完结了，相信细心的小伙伴在上一小节应用程序的编写中会发现问题，应用程序是从驱动的角度进行编写的.
+
+作为驱动工程师的我们当然可以理解每一行代码所要完成的功能，而一般情况下，应用都是由专业的应用工程师来进行编写的，上述代码编写方式很不利于应用工程师的理解和程序的移植，所以对于应用程序 API 的封装是一件必然的事情。
+
+**timerlib.h**
+
+```c
+#ifndef _TIMELIB_H_
+#define _TIMELIB_H_
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
+
+#define TIMER_OPEN _IO('L',0)
+#define TIMER_CLOSE _IO('L',1)
+#define TIMER_SET _IOW('L',2,int)
+int dev_open();
+int timer_open(int fd);
+int timer_close(int fd);
+int timer_set(int fd,int arg);
+#endif
+```
+
+调用代码
+
+```c
+#include <stdio.h>
+#include "timerlib.h"
+int dev_open()
+{
+	fd = open("/dev/test",O_RDWR,0777);
+    if(fd < 0){
+		printf("file open error \n");
+	}
+	return fd;
+}
+```
+
+### 优化驱动稳定性和效率
+
+在 Linux 中应用程序运行在用户空间，应用程序错误之后，并不会影响其他程序的运行，而驱动工作在内核层，是内核代码的一部分，当驱动出现问题之后，可能会导致整个系统的崩溃。所以在驱动中，需要对各种判断、预处理等进行排查等，在本小节将对如何优化驱动稳定性和提高驱动效率进行学习。
+
+#### 方法一：检测 ioctl 命令
+
+ioctl 的 cmd 命令是由合成宏合成得到的，也有相应的分解宏得到各个参数，四个分解宏如下所示：
+
+分解 cmd 命令，得到命令的类型：
+
+> _IOC_TYPE(cmd)
+
+分解 cmd 命令，得到数据（args）的传输方向：
+
+> _IOC_DIR(cmd)
+
+分解 cmd 命令，得到命令的序号：
+
+> _IOC_NR(cmd)
+
+分解 cmd 命令，得到数据（args）的大小：
+
+> _IOC_SIZE(cmd)
+
+可以在驱动中通过上述分解宏对传入的 ioctl 命令类型等参数进行判断，从而得到判断传入的参数是否正确，以此优化驱动的稳定性。
+
+```c
+if(_IOC_TYPE(cmd) != 'L'){
+  printk("cmd type error \n");
+  return -1;
+}
+```
+
+例如可以通过上述代码对传入参数的类型进行判断，如果传入的参数类型不为“L”,就返回错误，其他参数的检测方法相同。
+
+#### 方法二：检测传递地址是否合理
+
+access_ok()函数
+
+> **函数原型：**
+>
+> access_ok(addr,size);
+>
+> **函数作用：**
+>
+> 检查用户空间内存块是否可用
+>
+> **参数含义：**
+>
+> addr  用户空间的指针变量，其指向一个要检查的内存块开始处。
+>
+> size 要检查内存块的大小。
+>
+> **返回值：**
+>
+> 成功返回 1，失败返回 0
+
+以ioctl 地址传参实验为例，对传入的 args 地址进行判断，具体代码如下
+
+```c
+struct args test;
+int len;
+switch(cmd){
+  case CMD_TEST0:
+    len = sizeof(struct args);
+    if(!access_ok(arg,len)){
+    	return -1;
+    }
+    if(copy_from_user(&test,(int *)arg,sizeof(test)) != 0){
+    	printk("copy_from_user error\n");
+    }
+  break;
+```
+
+#### 方法三：分支预测优化
+
+现在的 CPU 都有 ICache 和流水线机制。即运行当前指令时，ICache 会预读取后面的指令，从而提升效率。但是如果条件分支的结果是跳转到了其他指令，那预取下一条指令就浪费时间了。而本章节要用到的 likely 和 unlikely 宏，会让编译器总是将大概率执行的代码放在靠前的位置，从而提高驱动的效率。
+
+likely 和 unlikely 宏定义在“内核源码/include/linux/compiler.h”文件中，具体定义如下
+
+> \#define likely(x) __builtin_expect(!!(x), 1)
+>
+> \#define unlikely(x) __builtin_expect(!!(x), 0)
+
+__builtin_expect 的作用是告知编译器预期表达式 exp 等于 c 的可能性更大，编译器可以根据该因素更好的对代码进行优化，所以 likely 与 unlikely 的作用就是表达性 x 为真的可能性更大（likely）和更小（unlikely）。
+
+这里以上一小节添加传递地址检测内容后的代码为例，对 copy_from_user 函数添加分支预测优化函数，添加完成如下
+
+```c
+struct args test;
+int len;
+switch(cmd){
+  case CMD_TEST0:
+    len = sizeof(struct args);
+    if(!access_ok(arg,len)){
+        
+        return -1;
+	}
+	if(unlikely(copy_from_user(&test,(int *)arg,sizeof(test)) != 0)){
+		printk("copy_from_user error\n");
+	}
+	break;
+```
+
+传递地址检测成功之后才会使用执行 copy_from_user 函数，在传递地址正确的前提下copy_from_user 函数运行失败为小概率事件，所以这里使用 unlikely 函数进行驱动效率的优化。
+
+### 驱动调试
+
+#### 方法 1：dump_stack 函数   清除系统日志的指令：dmesg -C
+
+作用:打印内核调用堆栈，并打印函数的调用关系。
+
+这里以最简单的 helloworld 驱动为例进行 dump_stack 函数演示，实验代码如下
+
+```c
+#include <linux/module.h>
+#include <linux/kernel.h>
+static int __init helloworld_init(void)
+{
+  printk(KERN_EMERG "helloworld_init\r\n");
+  dump_stack();
+  return 0;
+}
+static void __exit helloworld_exit(void)
+{
+	printk(KERN_EMERG "helloworld_exit\r\n");
+}
+module_init(helloworld_init);
+module_exit(helloworld_exit);
+MODULE_LICENSE("GPL v2");
+MODULE_AUTHOR("woniu");
+```
+
+和原 helloworld 驱动程序相比，在第 6 行添加了 dump_stack()，驱动加载之后打印信息
+
+![image-20240708201751737](https://woniumd.oss-cn-hangzhou.aliyuncs.com/aiot/luozhaoyong/image-20240708201751737.png)
+
+可以看到 helloworld_init 函数的调用关系就都打印了出来。
+
+#### 方法 2：WARN_ON(condition)函数
+
+WARN_ON (condition)函数作用:在括号中的条件成立时，内核会抛出栈回溯，打印函数的调用关系。通常用于内核抛出一个警告，暗示某种不太合理的事情发生了。
+
+WARN_ON 实际上也是调用 dump_stack，只是多了参数 condition 判断条件是否成立，例如 WARN_ON (1)则条件判断成功，函数会成功执行。
+
+这里仍然以最简单的 helloworld 驱动为例进行 WARN_ON 函数演示，实验代码如下
+
+```c
+#include <linux/module.h>
+#include <linux/kernel.h>
+static int __init helloworld_init(void)
+{
+  printk(KERN_EMERG "helloworld_init\r\n");
+  WARN_ON(1);
+  return 0;
+}
+static void __exit helloworld_exit(void)
+{
+	printk(KERN_EMERG "helloworld_exit\r\n");
+}
+module_init(helloworld_init);
+module_exit(helloworld_exit);
+MODULE_LICENSE("GPL v2");
+MODULE_AUTHOR("woniu");
+```
+
+和原 helloworld 驱动程序相比，在第 6 行添加了 WARN_ON(1)，驱动加载之后打印信息
+
+![image-20240708201904603](https://woniumd.oss-cn-hangzhou.aliyuncs.com/aiot/luozhaoyong/image-20240708201904603.png)
+
+可以看到 helloworld_init 函数的调用关系以及寄存器值就都打印了出来。
+
+#### 方法 3：BUG_ON (condition)函数
+
+内核中有许多地方调用类似 BUG_ON()的语句，它非常像一个内核运行时的断言，意味着本来不该执行到 BUG_ON()这条语句，一旦 BUG_ON()执行内核就会立刻抛出 oops，导致栈的回溯和错误信息的打印。大部分体系结构把 BUG()和 BUG_ON()定义成某种非法操作，这样自然会产生需要的 oops。参数 condition 判断条件是否成立，例如 BUG_ON (1)则条件判断成功，函数会成功执行。
+
+这里仍然以最简单的 helloworld 驱动为例进行 BUGON 函数演示，实验代码如下
+
+```c
+#include <linux/module.h>
+#include <linux/kernel.h>
+static int __init helloworld_init(void)
+{
+  printk(KERN_EMERG "helloworld_init\r\n");
+  BUG_ON(1);
+  return 0;
+}
+static void __exit helloworld_exit(void)
+{
+	printk(KERN_EMERG "helloworld_exit\r\n");
+}
+module_init(helloworld_init);
+module_exit(helloworld_exit);
+MODULE_LICENSE("GPL v2");
+MODULE_AUTHOR("woniu");
+```
+
+和原 helloworld 驱动程序相比，在第 6 行添加了 BUGON(1)，驱动加载之后打印信息
+
+![image-20240708202021572](https://woniumd.oss-cn-hangzhou.aliyuncs.com/aiot/luozhaoyong/image-20240708202021572.png)
+
+#### 方法 4：panic (fmt...)函数
+
+panic (fmt...)函数:输出打印会造成系统死机并将函数的调用关系以及寄存器值就都打印了出来。
+
+这里仍然以最简单的 helloworld 驱动为例进行 panic 函数的演示，实验代码如下
+
+```c
+#include <linux/module.h>
+#include <linux/kernel.h>
+static int __init helloworld_init(void)
+{
+    printk(KERN_EMERG "helloworld_init\r\n");
+    panic("!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+	return 0;
+}
+static void __exit helloworld_exit(void)
+{
+	printk(KERN_EMERG "helloworld_exit\r\n");
+}
+module_init(helloworld_init);
+module_exit(helloworld_exit);
+MODULE_LICENSE("GPL v2");
+MODULE_AUTHOR("woniu");
+```
+
+和原 helloworld 驱动程序相比，在第 6 行添加了 panic("!!!!!!!!!!!!!!!!!!!!!!!!!!!!")，驱动加载之后打印信息
+
+![image-20240708202121198](https://woniumd.oss-cn-hangzhou.aliyuncs.com/aiot/luozhaoyong/image-20240708202121198.png)
+
+可以看到 helloworld_init 函数的调用关系以及寄存器值就都打印了出来，信息打印完成之后会发现系统已经崩溃了，终端已经无法再进行输入。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
