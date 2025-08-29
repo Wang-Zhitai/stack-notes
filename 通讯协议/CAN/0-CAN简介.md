@@ -31,13 +31,13 @@
 
 ## 1. 高速CAN
 
-![image-20250821231658500](./assets/image-20250821231658500.png)
+<img src="./assets/image-20250821231658500.png" alt="image-20250821231658500" style="zoom:150%;" />
 
 
 
 ## 2. 低速CAN
 
-![image-20250821231705687](./assets/image-20250821231705687.png)
+<img src="./assets/image-20250821231705687.png" alt="image-20250821231705687" style="zoom:150%;" />
 
 
 
