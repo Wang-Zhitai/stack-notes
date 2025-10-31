@@ -2,38 +2,38 @@
 
 ```c
 /* 关闭回显，收到两次响应 */
-ATE0//指令
+ATE0\r\n
 ATE0
 
 OK
 
 /* 初始化BLE服务器，响应OK */
-AT+BLEINIT=2
+AT+BLEINIT=2\r\n
 
 OK
 
 /* 初始化BLE广播名，响应OK */
-AT+BLEADVDATAEX="DN100B","A002","446559696E54656368",1
+AT+BLEADVDATAEX="DN100B","A002","446559696E54656368",1\r\n
 
 OK
 
 /* 创建GATT服务，响应OK */
-AT+BLEGATTSSRVCRE
+AT+BLEGATTSSRVCRE\r\n
 
 OK
 
 /* 广播BLE地址，响应OK */
-AT+BLEADVSTART
+AT+BLEADVSTART\r\n
 
 OK
 
 /* 打开GATT服务，响应OK */
-AT+BLEGATTSSRVSTART
+AT+BLEGATTSSRVSTART\r\n
 
 OK
  
 /* 初始化透传参数，响应OK */
-AT+BLESPPCFG=1,1,6,1,5,1
+AT+BLESPPCFG=1,1,6,1,5,1\r\n
 
 OK
     
@@ -42,7 +42,7 @@ OK
 +WRITE:0,1,6,1,2,
 
 /* 连接成功后发送指令进入透传模式，响应OK和> */
-AT+BLESPP
+AT+BLESPP\r\n
 
 OK
 
@@ -57,18 +57,18 @@ ABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDE//接收数据
 
 ~~~ C
 /* 关闭回显，收到两次响应 */
-ATE0
+ATE0\r\n
 ATE0
 
 OK
 
 /* 初始化BLE客户端，响应OK */
-AT+BLEINIT=1
+AT+BLEINIT=1\r\n
 
 OK
 
 /* 按照蓝牙名搜索服务端，响应OK和信号列表 */
-AT+BLESCAN=1,2,2,"DN100B"
+AT+BLESCAN=1,2,2,"DN100B"\r\n
 
 OK
 +BLESCAN:"78:42:1c:2e:c4:1a",-15,0201060709444e313030420303a0020aff446559696e54656368020a03,,0
@@ -87,14 +87,14 @@ OK
 +BLESCANDONE
 
 /* 根据MAC地址连接服务端，响应+BLECONN: */
-AT+BLECONN=0,"78:42:1c:2e:c4:1a",0,10
+AT+BLECONN=0,"78:42:1c:2e:c4:1a",0,10\r\n
 +BLESCANDONE
 +BLECONN:0,"78:42:1c:2e:c4:1a"
 
 OK
 
 /* 发现服务端提供的GATT服务，响应OK */
-AT+BLEGATTCPRIMSRV=0
+AT+BLEGATTCPRIMSRV=0\r\n
 +BLEGATTCPRIMSRV:0,1,0x1801,1
 +BLEGATTCPRIMSRV:0,2,0x1800,1
 +BLEGATTCPRIMSRV:0,3,0xA002,1
@@ -103,10 +103,9 @@ AT+BLEGATTCPRIMSRV=0
 OK
     
 /* 给GATT服务赋值，通知服务器开启接收透传模式，响应>和OK */
-AT+BLEGATTCWR=0,3,6,1,2
+AT+BLEGATTCWR=0,3,6,1,4\r\n
 >
 0100
-busy p...
 
 OK
 
@@ -114,13 +113,12 @@ OK
 +INDICATE:0,3,6,20,	\r\n 
 +INDICATE:0,3,6,3,\r\n
 
-/* 客户端向服务端发送数据，一次最多128字节,此处的20就是要发送的字节数，发送成功响应OK */
-AT+BLEGATTCWR=0,3,5,20
+/* 客户端向服务端发送数据，一次最多1024字节,此处的1024就是要发送的字节数，发送成功响应OK */
+AT+BLEGATTCWR=0,3,5,1024\r\n
 >
-ABCDEABCDEABCDEABCDE
+//1024个字节的数据//
 OK
     
 /* 服务端掉线，客户端会收到此消息 */ 
 +BLEDISCONN:0,"78:42:1c:2e:c4:1a"
 ~~~
-

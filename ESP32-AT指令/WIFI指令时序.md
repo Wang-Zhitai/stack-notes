@@ -6,7 +6,7 @@ ATE0
 OK
 
 /* 设置WIFI开启STA模式，响应OK */
-AT+CWMODE=1,1
+AT+CWMODE=1,0
 
 OK
 
@@ -36,5 +36,6 @@ WIFI GOT IP
 
 OK
     
+/* 断开连接 */
+WIFI DISCONNECT
 ```
-

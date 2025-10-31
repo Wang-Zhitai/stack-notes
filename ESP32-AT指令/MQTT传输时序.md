@@ -1,11 +1,11 @@
 ```c
 /*设置MQTT客户端配置信息，用户名，密码*/
-AT+MQTTUSERCFG=0,1,"NULL","DN100_00000000","820314b432bb80caa58fe22125f41b8e241c2a2989944ed82302184e59dc091f",0,0,""
+AT+MQTTUSERCFG=0,1,"NULL","DN100_00000001","8772cb86fa67c6d961428453447750a2924793565909e764271903f9699b8445",0,0,""
     
 OK
 
 /*设置MQTT客户端ID*/
-AT+MQTTCLIENTID=0,"DN100_00000000_0_0_2025072202"
+AT+MQTTCLIENTID=0,"DN100_00000001_0_0_2025092416"
 
 OK
     
@@ -21,7 +21,7 @@ OK
 +MQTTSUBRECV:0,"$oc/devices/DN100_00000000/sys/events/down",162,{"object_device_id":"DN100_00000000","services":[{"event_type":"version_query","service_id":"$ota","event_time":"20250710T024800Z","paras":null}]}
 
 /*订阅下载主题*/
-AT+MQTTSUB=0,"$oc/devices/DN100_00000000/sys/events/down",1
+AT+MQTTSUB=0,"$oc/devices/DN100_00000001/sys/events/down",1
 
 OK
     
@@ -105,4 +105,3 @@ OK\r\n
 AT+MQTTPUB=0,"$oc/devices/68590ece7d33413cbac6c7c5_11111/sys/events/up","{\"services\":[{\"service_id\":\"$ota\"\,\"event_type\":\"upgrade_progress_report\"\,\"paras\":{\"result_code\":0\,\"version\":\"2.0\"}}]}",0,0
 
 ```
-
