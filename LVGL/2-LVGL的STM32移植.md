@@ -19,9 +19,11 @@
 > * STM32H7通过LTDC驱动的RGBLCD屏，通过FMC总线驱动的SDRAM，如何来移植LVGL
 > * 并且借助图形加速器DMA2D加速渲染，并且启用H7的MPU还有Cache达到较高帧率的优化方法
 > * 采用LVGL局部双缓冲+LTDC双显存的方案，达到运行效率、内存占用、显示效果的平衡点
+> * 如何移植LVGL的触控驱动，实现触摸屏的效果
 
-1. 根据自己的硬件平台，配置好LTDC的参数以及图层的参数与色彩格式，然后配置好DMA2D的参数与色彩格式，最后要配置好FMC总线的时序，确保能成功驱动起来SDRAM，这一步属于STM32的外设配置，不在此赘述。
+1. 根据自己的硬件平台，配置好LTDC的参数以及图层的参数与色彩格式，然后配置好DMA2D的参数与色彩格式，最后要配置好FMC总线的时序，确保能成功驱动起来SDRAM，最后配置好MPU和Chache功能,最后打开LTDC和DMA2D中断，在SDRAM初始化的时候记得加上序列初始化的指令。这一步属于STM32的外设配置，不在此赘述。
 2. 从LVGL官网下载想选用的LVGL的发行版，我这里用的是LVGL 9.4版，解压后删除没用的文件夹和文件，只留下以下文件（带有_template的是官方给的模版文件，记得去掉文件名里的_template，并且在源码里的包含路径里凡是涉及到的位置全部做出修改）
+   * [https://github.com/lvgl/lvgl](https://github.com/lvgl/lvgl)
 
 ```c
 lvgl
@@ -57,7 +59,6 @@ lvgl
 ```c
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-
   if (htim->Instance == TIM6)
   {
     HAL_IncTick();
@@ -77,28 +78,22 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 #include "lv_demo_benchmark.h"//添加头文件
 int main(void)
 {
-  MPU_Config();
-  SCB_EnableICache();
-  SCB_EnableDCache();
+  MPU_Config();//配置MPU来定义不同内存区域的访问权限设置缓存策略和共享属性防止非法内存访问
+  SCB_EnableICache();//启用CPU的指令缓存加速指令读取，提高程序执行速度对于LVGL这种包含大量图形渲染代码的应用特别重要
+  SCB_EnableDCache();//启用CPU的数据缓存加速数据访问，特别是帧缓冲区操作显著提升图形渲染性能
   HAL_Init();
-
   SystemClock_Config();
-
   MX_GPIO_Init();
   MX_DMA2D_Init();
   MX_I2C1_Init();
   MX_LTDC_Init();
   MX_USART1_UART_Init();
   MX_FMC_Init();
-
   lv_init();//初始化LVGL图形库
-    
   lv_port_disp_init();//添加显示接口初始化函数
   lv_demo_benchmark();//添加跑分demo
-
   while (1)
   {
-
     lv_timer_handler();//处理LVGL的定时器系统
   }
 }
@@ -198,7 +193,7 @@ HAL_NVIC_EnableIRQ(LTDC_IRQn);
 ```
 
 ```c
-//lv_port_disp.c中添加一个LTDC行中断回调函数
+//lv_port_disp.c中添加一个LTDC行中断回调函数，只在中断中刷新LTDC显存地址
 void HAL_LTDC_LineEvenCallback(LTDC_HandleTypeDef *hltdc)
 {
     // 重新载入参数，新显存地址生效，此时显示才会更新
@@ -257,7 +252,8 @@ void ltdc_color_fill(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint32_
   // 地址计算：RGB888每个像素3字节
   addr = ((uint32_t)framebuffer + 3 * (800 * y1 + x1));
 
-  SCB_CleanInvalidateDCache(); /*打开MPU的Cache加速数据传输*/
+  SCB_CleanInvalidateDCache(); //清理：将Cache中已修改的数据写回到主内存，失效：使Cache中的数据无效，强制从主内存重新读取。确保了CPU和DMA2D之间数据的一致性，是使用Cache加速时必须的同步操作
+    
   __HAL_RCC_DMA2D_CLK_ENABLE(); /* 使能DM2D时钟 */
 
   DMA2D->CR &= ~(DMA2D_CR_START);            /* 先停止DMA2D */
@@ -428,5 +424,99 @@ void lv_inv_area(lv_display_t *disp, const lv_area_t *area_p)
 #endif
 ```
 
+16. 修改文件，把两个文件的#if 0改成#if 1启用文件，然后把相关的头文件的全局变量添加进来，然后注释掉lv_port_indev_init()函数中的无关内容，只留下触控驱动
+    * lv_port_indev.h
+    * lv_port_indev.c
 
+```c
+/**
+ * @file lv_port_indev.c
+ *
+ */
+#if 1 //#if 0改成#if 1
 
+#include "lv_port_indev.h"
+#include <stdio.h> //添加需要用到的头文件
+#include "bsp_gt911.h" //添加GT911的接口函数涉及到的头文件
+extern GT911_Object_t gt911_obj; // 引入自行实现的外部GT911对象，如果写的接口函数不需要这个就不引入了，因人而异，和接口实现方式有关
+
+//lv_port_indev_init(void)函数中只留下触控相关的函数
+void lv_port_indev_init(void)
+{
+    touchpad_init();
+
+    indev_touchpad = lv_indev_create();
+    lv_indev_set_type(indev_touchpad, LV_INDEV_TYPE_POINTER);
+    lv_indev_set_read_cb(indev_touchpad, touchpad_read);
+
+}
+```
+
+17. 修改lv_port_indev.c里的touchpad_read()函数，根据自己的硬件实现触控接口，至于接口怎么实现，因人而异，不做赘述，LVGL要求接口实现的功能只有两个一个是坐标读取功能，另一个是按压状态判断功能
+
+```c
+static void touchpad_read(lv_indev_t *indev_drv, lv_indev_data_t *data)
+{
+    static int32_t last_x = 0;
+    static int32_t last_y = 0;
+
+    GT911_State_t touch_state;
+
+    if (GT911_GetState(&gt911_obj, &touch_state) == GT911_OK)//读取按压状态和坐标的函数要自己根据硬件来实现
+    {
+        if (touch_state.TouchDetected > 0)//需要实现对于按压状态的判断，是按下还是释放
+        {
+            last_x = touch_state.TouchX;
+            last_y = touch_state.TouchY;
+            printf("Touch X: %ld, Touch Y: %ld\n", last_x, last_y); // 打印触摸坐标
+            data->state = LV_INDEV_STATE_PRESSED;
+        }
+        else
+        {
+            data->state = LV_INDEV_STATE_RELEASED;
+        }
+    }
+    else
+    {
+        data->state = LV_INDEV_STATE_RELEASED;
+    }
+
+    data->point.x = last_x;
+    data->point.y = last_y;
+}
+```
+
+18. 最后在main()函数里加入lvgl触控初始化函数lv_port_indev_init()，触控功能即可使用（没有进行触控外设初始化是因为我把他放在了bsp初始化里，如果不想放在bsp初始化里就需要把触控外设初始化放到LVGL的touchpad_init()函数里）
+
+```c
+#include <stdio.h>//添加头文件
+#include "dma2d.h"//添加头文件
+#include "lvgl.h"//添加头文件
+#include "lv_port_disp.h"//添加头文件
+#include "lv_port_indev.h"//添加头文件
+#include "lv_demo_benchmark.h"//添加头文件
+int main(void)
+{
+  MPU_Config();//配置MPU来定义不同内存区域的访问权限设置缓存策略和共享属性防止非法内存访问
+  SCB_EnableICache();//启用CPU的指令缓存加速指令读取，提高程序执行速度对于LVGL这种包含大量图形渲染代码的应用特别重要
+  SCB_EnableDCache();//启用CPU的数据缓存加速数据访问，特别是帧缓冲区操作显著提升图形渲染性能
+  HAL_Init();
+  SystemClock_Config();
+  MX_GPIO_Init();
+  MX_DMA2D_Init();
+  MX_I2C1_Init();
+  MX_LTDC_Init();
+  MX_USART1_UART_Init();
+  MX_FMC_Init();
+  lv_init();//初始化LVGL图形库，这一步要在LVGL所有接口初始化前面，后面的显示触控接口顺序随意
+  lv_port_disp_init();//添加显示接口初始化函数
+  lv_port_indev_init();//添加lvgl输入设备接口初始化函数，（这里只实现了触控，想实现鼠标按键编码器都是可以的）
+  lv_demo_benchmark();//添加跑分demo
+  while (1)
+  {
+    lv_timer_handler();//处理LVGL的定时器系统
+  }
+}
+```
+
+19. 触控读取函数touchpad_read()里面的打印坐标其实是可以去掉的，我加上只是方便调试，正式程序去掉就好了，串口不要打印一堆没用的东西，会拖慢程序运行效率
