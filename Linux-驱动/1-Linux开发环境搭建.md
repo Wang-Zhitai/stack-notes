@@ -532,7 +532,7 @@ tar -xvf atk-dlrk3506_linux6.1_release_v1.2.0_20250718.tar.gz
 
 
 
-## （五） SDK镜像文件介绍
+## （五） SDK镜像文件目录介绍
 
 **瑞芯微的SDK编译后生成的镜像文件夹rockdev的目录如下：**
 
