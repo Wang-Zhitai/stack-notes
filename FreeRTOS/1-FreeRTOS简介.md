@@ -1,19 +1,13 @@
-# 一、和裸机开发对比
-* 不使用操作系统：
-1. 任务单一
-2. 希望系统非常省电
-* 使用操作系统：
-1. 同时执行多个任务
-2. 对功耗没有要求
-3. 希望可以有一个程序自动帮我们管理内存
+# FreeRTOS简介
 
-# 二、FreeRTOS介绍
+是市场领先的面向微控制器和小型微处理器的实时操作系统 (RTOS)。FreeRTOS 通过 MIT 开源许可免费分发，包括一个内核和一组不断丰富的 IoT 库，适用于所有行业领域。FreeRTOS 的构建突出可靠性和易用性。
 
-* 是市场领先的面向微控制器和小型微处理器的实时操作系统 (RTOS)。FreeRTOS 通过 MIT 开源许可免费分发，包括一个内核和一组不断丰富的 IoT 库，适用于所有行业领域。FreeRTOS 的构建突出可靠性和易用性。
 ***
 **[FreeRTOS™ - FreeRTOS™](https://www.freertos.org/zh-cn-cmn-s)**
+
 ***
 ## （1）FreeRTOS的特点
+
 1. **任务调度：** FreeRTOS的内核支持抢占式，协同式和时间片调度。
 2. **任务通信和同步：** 提供了队列、信号量等机制，支持任务之间的通信和同步，确保数据的
 安全传递。
@@ -34,7 +28,9 @@
 	* “轮询调度”是指具有相同优先级的任务轮流进入运行状态。
 2. “时间切片”是指调度器会在每个 tick 中断上在同等优先级任务之间进行切换， tick 中断之间的时间构成一个时间切片。（tick 中断是 RTOS 用来衡量时间的周期性中断。）
 3. 需要注意的是高优先级的任务并不会一直执行，导致低优先级的任务无法得到执行。如果高优先级任务等待某个资源（延时或等待信号量等）而无法执行，调度器会选择执行其他就绪的高优先级的任务（但是你要搞一个while（1）里面一直在循环执行程序，那肯定是高优先级的一直在运行）
+
 ## （4）上下文切换
+
 * 在 FreeRTOS 中，“上下文切换”指的是在运行不同任务之间切换 CPU 执行状态的过程。使得多个任务可以在单个处理器上“并发”执行，尽管实际上它们是交替运行的。
 1. **上下文的含义：**
 	**CPU 寄存器状态：** 当前任务的寄存器内容（如程序计数器、堆栈指针、通用寄存器等），它们定义了任务的执行位置和状态。
@@ -68,145 +64,3 @@
     如果任务当前正在等待时间或外部事件，则该任务被认为处于阻塞状态。 例如，如果一个任务调用vTaskDelay()，它将被阻塞（被置于阻塞状态）， 直到延迟结束——一个时间事件。 任务也可以通过阻塞来等待队列、信号量、事件组、通知或信号量 事件。处于阻塞状态的任务通常有一个"超时"期， 超时后任务将被超时，并被解除阻塞， 即使该任务所等待的事件没有发生。“阻塞”状态下的任务不使用任何处理时间，不能 被选择进入运行状态。
 - **挂起**
     与“阻塞”状态下的任务一样， “挂起”状态下的任务不能被选择进入运行状态，但处于挂起状态的任务 没有超时。相反，任务只有在分别通过 vTaskSuspend() 和 xTaskResume() API 调用明确命令时 才会进入或退出挂起状态。
-# 三、FreeRTOS的移植（以STM32F103为例）
-1. 在官网下载FreeRTOS并解压
-2. 在需要移植FreeRTOS的项目中添加存储FreeRTOS文件的文件夹，建议：FreeRTOS/src、FreeRTOS/port、FreeRTOS/inc
-3. FreeRTOS的头文件：复制\FreeRTOS\Source\include中的所有文件到FreeRTOS/inc中
-4. FreeRTOS移植文件，与编译器相关、keil编译环境：复制\FreeRTOS\FreeRTOS\Source\portable\RVDS\ARM_CM3中所有文件到FreeRTOS/port中
-5. 内存管理相关文件: 复制\FreeRTOS\Source\portable\MemMang\heap_4.c到FreeRTOS/port中（此步骤是用于选取内存管理方式的，一般选方案4就行）
-6. 标准 C 源文件:复制\FreeRTOS\Source中的所有.c文件（不包括文夹件）到FreeRTOS/src中
-7. 配置文件：复制\FreeRTOS\Demo\CORTEX_STM32F103_Keil\FreeRTOSConfig.h到FreeRTOS/inc中
-8. 打开FreeRTOSConfig.h，在最后一个#endif前添加代码
-
-```c
-#define vPortSVCHandler SVC_Handler 
-#define xPortSysTickHandler SysTick_Handler 
-#define xPortPendSVHandler PendSV_Handler
-/*
-在FreeRTOS中，使用三个宏重写了中断，实现任务调度。
-vPortSVCHandler ：用于初始化第一次任务切换。
-xPortSysTickHandler ：用于定时产生系统滴答，触发任务调度。
-xPortPendSVHandler ：用于延迟触发上下文切换，确保上下文切换只在需要时执行
-*/
-```
-
-9. 打开stm32f103_it.c文件，注释掉以下三个函数（重复定义了）
-
-```c
-/*
-void SVC_Handler(void) 
-{
-
-}
-
-void PendSV_Handler(void) 
-{
-
-}
-
-void SysTick_Handler(void) 
-{
-
-}
-*/
-```
-
-10. 在Keil中添加相应路径下的目录并添加里面的.c和.h的文件
-11. 在Keil中添加相应的include Path
-12. 编译并测试
-# 四、配置文件
-***
-**[定制 - FreeRTOS™](https://www.freertos.org/zh-cn-cmn-s/Documentation/02-Kernel/03-Supported-devices/02-Customization)**
-***
-* **FreeRTOSConfig.h**配置项在中文官网已经很详细了！！！
-
-```c
-#ifndef FREERTOS_CONFIG_H 
-#define FREERTOS_CONFIG_H
-
-/*-----------------------------------------------------------
- * Application specific definitions.
- *
- * These definitions should be adjusted for your particular hardware and 
- * application requirements.
- *
- * THESE PARAMETERS ARE DESCRIBED WITHIN THE 'CONFIGURATION' SECTION OF THE 
- * FreeRTOS API DOCUMENTATION AVAILABLE ON THE FreeRTOS.org WEB SITE.
- *
- * See http://www.freertos.org/a00110.html 
- *----------------------------------------------------------*/
- 
-#define configUSE_PREEMPTION        1  // 1: 抢占式调度器, 0: 协程式调度器 
-
-#define configUSE_IDLE_HOOK         0  
-//如果希望使用空闲钩子，请将其设置为 1；如果希望忽略空闲钩子，请将其设置为 0
-
-#define configUSE_TICK_HOOK         0  
-//如果希望使用滴答钩子，请将其设置为 1；如果希望忽略滴答钩子，请将其设置为 0。
-
-#define configCPU_CLOCK_HZ          ( ( unsigned long ) 72000000 )  
-//输入内部时钟的执行频率（单位为 Hz） 
-
-#define configTICK_RATE_HZ          ( ( TickType_t ) 1000 ) 
-//RTOS 滴答中断的频率 , 一个时间片是1ms
-
-#define configMAX_PRIORITIES        ( 5 ) 
-/*
-最大优先级是5，每个任务均被分配了从 0 到 ( configMAX_PRIORITIES - 1 ) 的优先级，configMAX_PRIORITIES 无法高于 32，优先级数字小表示任务优先级低
-*/
-
-#define configMINIMAL_STACK_SIZE    ( ( unsigned short ) 128 ) 
-//任务使用的堆栈大小, STM32F103 实际的字节是STACK_SIZE * 4
-
-#define configTOTAL_HEAP_SIZE       ( ( size_t ) ( 17 * 1024 ) ) 
-//堆中可用的RAM 总量
-
-#define configMAX_TASK_NAME_LEN     ( 16 ) 
-//创建任务时，赋予该任务的描述性名称的最大允许长度
-
-#define configUSE_TRACE_FACILITY    0  //协助执行可视化和跟踪,调试用的
-
-#define configUSE_16_BIT_TICKS      0 
-//假设滴答频率 为 250Hz,使用 32 位计数器时为 17179869 秒。
-
-#define configIDLE_SHOULD_YIELD     1  
-//设置为 1， 则在其他具有空闲优先级的任务准备运行时，空闲任务将立即让出 CPU
- 
- 
-/* 启用/关闭 功能 */
-#define INCLUDE_vTaskPrioritySet        1 
-#define INCLUDE_uxTaskPriorityGet       1 
-#define INCLUDE_vTaskDelete             1
-#define INCLUDE_vTaskCleanUpResources   0 
-#define INCLUDE_vTaskSuspend            1
-#define INCLUDE_vTaskDelayUntil         1
-#define INCLUDE_vTaskDelay              1   //开启任务延时
- 
-/* This is the raw value as per the Cortex-M3 NVIC.  Values can be 255 
-(lowest) to 0 (1?) (highest). */
-#define configKERNEL_INTERRUPT_PRIORITY         255  
-//设置 RTOS 内核自身使用 的中断优先级。 一般设置为最低优先级, 不至于屏蔽其他优先级程序
-
-/* !!!! configMAX_SYSCALL_INTERRUPT_PRIORITY must not be set to zero !!!! 
-See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
-#define configMAX_SYSCALL_INTERRUPT_PRIORITY    191 
-/* equivalent to 0xb0, or priority 11. */ 
-// FreeRTOS 的管理的最高优先级
-  
-/* This is the value being used as per the ST library which permits 16 
-priority values, 0 to 15.  This must correspond to the 
-configKERNEL_INTERRUPT_PRIORITY setting.  Here 15 corresponds to the lowest 
-NVIC value of 255. */
-#define configLIBRARY_KERNEL_INTERRUPT_PRIORITY 15  
-/*
-FreeRTOS 的库函数会在优先级 15 上运行（最低优先级），并且不会干扰优先级较高的中断（如优先级 0-14 的中断）
-*/
- 
-//使用FreeRTOS的内置方法处理，把原STM32中的方法注释掉 
-#define xPortPendSVHandler PendSV_Handler
-#define vPortSVCHandler SVC_Handler
-#define xPortSysTickHandler SysTick_Handler
- 
- 
-#endif /* FREERTOS_CONFIG_H */
-```
