@@ -1,51 +1,3 @@
-
-
-**开发板执行：**
-
-scp wangzhitai@172.172.14.109:/aa/34-CMake /
-
-nfs 80800000 172.172.14.109:/linux/uboot-zdyz/u-boot.imx
-
-mount -t nfs -o nfsvers=3,nolock 172.172.14.109:/aa/ /mnt/
-
-cd /mnt/rknn-toolkit2-master/rknpu2/examples/rknn_yolov5_demo/install/rknn_yolov5_demo_Linux
-
-./rknn_yolov5_demo
-
-insmod /mnt/my-work/00-leddriver/led-driver.ko
-
-cd /sys/bus/platform/devices/ledctrl
-
-sudo scp -r wangzhitai@172.172.14.108:/aa/07_plate_detection_recongnition /
-
-sudo scp -r root@172.172.14.108:/opt/* /opt
-
-./plate_detection_recongnition model/RK3568/yolov5n.rknn model/RK3568/best.rknn model/test.mp4
-
-./plate_detection_recongnition model/RK3568/best.rknn model/RK3568/yolov5n.rknn model/test.mp4
-
-**LED驱动控制：**
-
-echo on > /sys/devices/platform/ledctrl/mode
-
-echo off > /sys/devices/platform/ledctrl/mode
-
-echo fastblink > /sys/devices/platform/ledctrl/mode
-
-echo slowblink > /sys/devices/platform/ledctrl/mode
-
-**Ubuntu执行：**
-
-cd /aa/rknn-toolkit2-master/rknpu2/examples/rknn_yolov5_demo
-
-rm -rf platform-tools/
-
-./build-linux_RK3566_RK3568.sh
-
-> ls /dev
-
-
-
 # 一、Linux操作系统介绍
 
 Linux 是一种开源且免费的操作系统内核，是由芬兰计算机科学家 Linus Torvalds 于 1991  年开始编写，并在其后的几年中不断完善和发展而来。最初是作为个人电脑使用的，但现在已经成为了许多服务器、移动设备、超级计算机等各种类型的硬件设备上的主要操作系统。
@@ -60,9 +12,7 @@ Linux 是一种开源且免费的操作系统内核，是由芬兰计算机科�
 
 # 二、开发环境搭建
 
-> 现在主流的操作系统开发方法：编译系统需要在Ubuntu环境下进行编译，所以要先装一个具有编译环境的Ubuntu虚拟机用来开发驱动
-
-
+> 现在主流的操作系统开发方法：编译系统需要在Ubuntu环境下进行编译，所以要先装一个具有编译环境的Ubuntu用来开发驱动
 
 ## （一）安装Ubuntu
 
@@ -76,6 +26,8 @@ Linux 是一种开源且免费的操作系统内核，是由芬兰计算机科�
 
 
 ### 1. VMware+Ubuntu虚拟机
+
+**注意：**使用VMware并不需要打开控制面板里的虚拟机平台和虚拟机程序监控平台还有基于Linux的Windows子系统，开了也不影响
 
 #### （1）下载VMWare Workstation Pro
 
@@ -106,11 +58,6 @@ Linux 是一种开源且免费的操作系统内核，是由芬兰计算机科�
 ![image-20250213125916.png](./assets/image-20250213125916.png)
 
 11. 安装时选择用于个人用途，就是免费使用的
-11. 打开Windows控制面板 → 程序和功能 → 添加或者删除Windows功能 ，使用VMware要开启虚拟机平台（Virtual Machine Platform）
-
-![image-20251106161521996](./assets/image-20251106161521996.png)
-
-
 
 #### （2）在VMware中安装Ubuntu系统
 
