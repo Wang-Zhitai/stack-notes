@@ -16,20 +16,7 @@ Linux 是一种开源且免费的操作系统内核，是由芬兰计算机科�
 
 ## （一）安装Ubuntu
 
-> 现在主流的Linux环境有两个：
->
-> * 一个是安装WSL，这个是用起来最方便且性能最好的方式，基本上和Windows无缝协同，但是可能会有一些兼容问题，不过大部分都是可以解决的，只是不太适合新手。
-> * 另一个是安装VMware虚拟机，然后安装一个Ubuntu到里面，这样的Ubuntu和你在物理机上装一个Ubuntu是没有什么差别的，基本上是原生Ubuntu环境，但是缺点是性能会低一些，而且和Windows协同工作没有那么舒服。
->
-> 当然，想用哪个自己选就行，都可以的。
-
-
-
-### 1. VMware+Ubuntu虚拟机
-
-**注意：**使用VMware并不需要打开控制面板里的虚拟机平台和虚拟机程序监控平台还有基于Linux的Windows子系统，开了也不影响
-
-#### （1）下载VMWare Workstation Pro
+### 1.下载VMWare Workstation Pro
 
 1. 进入VMware官网：[VMware by Broadcom - Cloud Computing for the Enterprise](https://www.vmware.com/)
 
@@ -39,134 +26,29 @@ Linux 是一种开源且免费的操作系统内核，是由芬兰计算机科�
 
 4. 注册登录
 
-5. 点击：DOWNLOAD FUSION OR WORKSTATION
+5. 点击：DOWNLOAD NO
 
 6. 左侧导航栏选择：My Dashboard
 
-7. 搜索：VMware Workstation Pro
+7. 搜索：VMware Workstation
 
-8. 点击：Downloading and license VMware Desktop Hypervisor
+8. 点击：Downloading VMware Workstation Pro
 
-![Pasted image 20250213125534.png](./assets/image-20250213125534.png)
+![image-20251107170310425](./assets/image-20251107170310425.png)
 
-9. 滚动到下面，点击下载 VMware Workstation Pro
-
-![image-20250213125550.png](./assets/image-20250213125550.png)
+9. 滚动到下面，点击下载 Download VMware Workstation Pro (Free)![image-20251107170355233](./assets/image-20251107170355233.png)
 
 10. 下载并安装最新版即可
 
-![image-20250213125916.png](./assets/image-20250213125916.png)
+![image-20251107170441532](./assets/image-20251107170441532.png)
 
-11. 安装时选择用于个人用途，就是免费使用的
+11. 打开Windows控制面板 → 程序和功能 → 添加或者删除Windows功能 ，使用VMware要开启虚拟机程序监控平台
 
-#### （2）在VMware中安装Ubuntu系统
+### 2.在VMware中安装Ubuntu系统
 
 这一步没什么好说的，先不安装系统，配置好硬件信息后启动成功然后关机，然后挂载CD/DVD到自己下载的ISO文件，然后开机安装系统，安装成功后关机，把CD/DVD驱动器直接移除掉，再开机就是正常从自己配置的虚拟磁盘里启动了
 
 
-
-### 2.Windows+WSL2
-
-#### （1）安装WSL2
-
-1. 首先要在BIOS里面打开虚拟化的支持，一般电脑都是打开的
-2. 打开Windows控制面板 → 程序和功能 → 添加或者删除Windows功能 ，使用VMware要开启虚拟机平台（Virtual Machine Platform）和适用于Linux的Windows子系统
-
-![image-20251106161521996](./assets/image-20251106161521996.png)
-
-3. 打开windows的命令提示符，输入指令切换wsl的版本到wsl2
-
-```powershell
-wsl --set-default-version 2
-```
-
-4. 等待wsl2安装成功后输入指令查看是否成功，如果出现下图，则已经更新完成
-
-```powershell
-wsl --update
-```
-
-![image-20251106162213348](./assets/image-20251106162213348.png)
-
-5. 然后安装Ubuntu，打开微软应用商店搜索Ubuntu，然后下载想要的版本即可
-
-![image-20251106162347656](./assets/image-20251106162347656.png)
-
-6. 安装完成ubuntu后我们点击开始菜单里的Ubuntu进入系统，一开始会显示正在安装，安装完成后会提示`Enter new UNIX username：`这个时候我们输入自己的用户名就好了，然后会提示``New password：`这个时候输入自己的密码，然后会提示`Retype new password：`然后我们重新输入一次密码就行
-
-7. 我们需要先启用root账户
-
-   * 设置root用户密码
-
-   ```shell
-   sudo passwd
-   ```
-
-   * 然后输入ubuntu的登录密码，接着输入两次Unix密码（Unix密码就是想要设置的root用户登录密码）
-
-   * 输入以下命令来切换到root用户
-
-   ```shell
-   su root
-   ```
-
-   * 然后输入刚刚设置的Unix密码，可以看到用户名变成root说明已经启用成功了
-
-8. 想让每次WSL的Ubuntu启动的时候都不使用root账户的话，需要修改配置文件`/etc/wsl.conf`
-
-```shell
-vim /etc/wsl.conf
-```
-
-* 然后新增一个配置项在后面,这里的wzt就是你想让每次自动启动的用户名
-
-```shell
-[user]
-default = wzt
-```
-
-#### （2）将WSL2里的Ubuntu移动到D盘
-
-1. 默认`WSL2`都会把`Ubuntu`安装在`C`盘，太乱了，我们给他搞到`D`盘里
-2. 列出已安装的 WSL 分发版：在 `CMD` 或 `PowerShell` 中执行：
-
-```powershell
-wsl -l -v
-```
-
-* 你会看到类似这样的输出，确认你的 `Ubuntu` 名称（例如 `Ubuntu-22.04`）和它正在运行（状态为 `Running`），还有版本`2`代表了`WSL2`。
-
-```powershell
-  NAME            STATE           VERSION
-* Ubuntu-20.04    Running         2
-```
-
-3. 关闭所有 `WSL` 实例：确保接下来操作无误，先关闭 `WSL`：
-
-```powershell
-wsl --shutdown
-```
-
-4. 再次运行 `wsl -l -v`，状态应该变为 `Stopped`
-
-```powershell
-  NAME            STATE           VERSION
-* Ubuntu-20.04    Stopped         2
-```
-
-5. 输入指令移动`wsl`安装位置
-
-```powershell
-wsl --manage Ubuntu-20.04 --move D:\WSL\Ubuntu-20.04
-```
-
-* `--manage --move`：将发行版移动到新位置的指令
-* `Ubuntu-20.04`：这里是上面指令列出来的发行版名称
-* `D:\WSL\Ubuntu-20.04`：这里是要移动到的目标文件夹
-
-6. 移动后要修改目标文件夹的属性，给予`Users`账户完全控制权限，这样的话`WSL`启动时候就不会报错了
-
-![image-20251107094400360](./assets/image-20251107094400360.png)
 
 ## （二） Ubuntu设置
 
