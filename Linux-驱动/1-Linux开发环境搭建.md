@@ -125,61 +125,48 @@ vim /etc/wsl.conf
 default = wzt
 ```
 
-
-
 #### （2）将WSL2里的Ubuntu移动到D盘
 
-1. 默认WSL2都会把Ubuntu安装在C盘，太乱了，我们给他搞到D盘里
-2. 列出已安装的 WSL 分发版：在 CMD 或 PowerShell 中执行：
+1. 默认`WSL2`都会把`Ubuntu`安装在`C`盘，太乱了，我们给他搞到`D`盘里
+2. 列出已安装的 WSL 分发版：在 `CMD` 或 `PowerShell` 中执行：
 
 ```powershell
 wsl -l -v
 ```
 
-* 你会看到类似这样的输出，确认你的 Ubuntu 名称（例如 `Ubuntu-22.04`）和它正在运行（状态为 `Running`），还有版本`2`代表了`WSL2`。
+* 你会看到类似这样的输出，确认你的 `Ubuntu` 名称（例如 `Ubuntu-22.04`）和它正在运行（状态为 `Running`），还有版本`2`代表了`WSL2`。
 
 ```powershell
   NAME            STATE           VERSION
 * Ubuntu-20.04    Running         2
 ```
 
-3. 关闭所有 WSL 实例：确保接下来操作无误，先关闭 WSL：
+3. 关闭所有 `WSL` 实例：确保接下来操作无误，先关闭 `WSL`：
 
 ```powershell
 wsl --shutdown
 ```
 
 4. 再次运行 `wsl -l -v`，状态应该变为 `Stopped`
-5. 导出分发版：我们将 Ubuntu 导出到一个压缩文件中。这里我们选择 D 盘根目录下的一个文件夹，例如 `D:\WSL`。
 
 ```powershell
-wsl --export Ubuntu-20.04 D:\WSL\Ubuntu-20.04.tar
+  NAME            STATE           VERSION
+* Ubuntu-20.04    Stopped         2
 ```
 
-* `Ubuntu-20.04` 替换成你 `wsl -l -v` 列表中显示的确切名称。
-
-- `D:\WSL\ubuntu-20.04.tar` 是导出的目标路径和文件名，你可以自定义。
-
-6. 注销（删除）原来的分发版：（注意：这会删除 C 盘里的 Ubuntu 及其所有数据，请确保你已经完成了步骤 C 的导出！）
+5. 输入指令移动`wsl`安装位置
 
 ```powershell
-wsl --unregister Ubuntu-20.04
+wsl --manage Ubuntu-20.04 --move D:\WSL\Ubuntu-20.04
 ```
 
-7. 在 D 盘导入并安装分发版：现在，我们将导出的文件导入到 D 盘的一个新文件夹中，作为新的安装目录。
+* `--manage --move`：将发行版移动到新位置的指令
+* `Ubuntu-20.04`：这里是上面指令列出来的发行版名称
+* `D:\WSL\Ubuntu-20.04`：这里是要移动到的目标文件夹
 
-```powershell
-wsl --import Ubuntu D:\WSL\Ubuntu-20.04 D:\WSL\Ubuntu-20.04.tar --version 2
-```
+6. 移动后要修改目标文件夹的属性，给予`Users`账户完全控制权限，这样的话`WSL`启动时候就不会报错了
 
-- `Ubuntu-20.04`：这是你给新分发版起的名字，以后用 `wsl -d Ubuntu-20.04` 启动。
-- `D:\WSL\Ubuntu-20.04`：这是 **Ubuntu 系统的根文件系统将要存放的物理位置**。这个文件夹会被自动创建。
-- `D:\WSL\Ubuntu-20.04.tar`：这是你上一步导出的文件路径。
-- `--version 2`：指定使用 WSL 2。
-
-8. 现在WSL2就成功的运行在了D盘里
-
-
+![image-20251107094400360](./assets/image-20251107094400360.png)
 
 ## （二） Ubuntu设置
 
@@ -550,8 +537,6 @@ chmod 777 zImage
 5. 下载完成后，将下载的 `汉语（中国）` 拖到最上方。
 6. 重启Ubuntu系统，设置生效。 
 
-
-
 ## （三） SDK源码安装和编译
 
 > **注意事项：**
@@ -586,8 +571,6 @@ tar -xvf atk-dlrk3506_linux6.1_release_v1.2.0_20250718.tar.gz
 ./build.sh
 ```
 
-
-
 ## （四） SDK源码目录介绍
 
 > **瑞芯微提供的SDK目录如下：**
@@ -606,8 +589,6 @@ tar -xvf atk-dlrk3506_linux6.1_release_v1.2.0_20250718.tar.gz
 > * **u-boot：**基于 v2017.09 版本进行开发的 uboot 源码。
 > * **yocto：**基于 Yocto 开发的根文件系统。
 > * **build.sh：**是RK提供的一个编译脚本，使用该脚本可以方便用户快速构建出各种镜像文件以及对镜像进行打包操作，既可以一键全自动编译整个 SDK，也可以单独编译 U-Boot、 Linux Kernel、 buildroot 等，非常方便  
-
-
 
 ## （五） SDK镜像文件目录介绍
 
