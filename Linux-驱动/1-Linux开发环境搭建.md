@@ -4,7 +4,7 @@ Linux 是一种开源且免费的操作系统内核，是由芬兰计算机科�
 
 嵌入式Linux的应用领域非常广泛，主要的应用领域有信息家电、PAD 、机顶盒、Digital Telephone、Answering Machine、Screen Phone 、数据网络、Ethernet Switches、Router、Bridge、Hub、Remote access servers、ATM、Frame relay 、远程通信、医疗电子、交通运输计算机外设、工业控制、航空航天领域等。
 
-**Linux的组成：uboot（引导加载程序），kernel（系统内核）， rootfs（root file system根文件系统）**
+**一个完整的Linux操作系统的组成：uboot（引导加载程序），ernel（系统内核）， rootfs（root file system根文件系统）**
 
 ![image-20250212171804.png](./assets/image-20250212171804.png)
 
@@ -18,11 +18,11 @@ Linux 是一种开源且免费的操作系统内核，是由芬兰计算机科�
 
 ### 1.下载VMWare Workstation Pro
 
-1. 进入VMware官网：[VMware by Broadcom - Cloud Computing for the Enterprise](https://www.vmware.com/)
+1. 进入 VMware官网：[VMware by Broadcom - Cloud Computing for the Enterprise](https://www.vmware.com/)
 
 2. 搜索产品：Desktop Hypervisor
 
-3. 点击Products找到下载网址：[https://www.vmware.com/products/desktop-hypervisor/workstation-and-fusion](https://www.vmware.com/products/desktop-hypervisor/workstation-and-fusion)
+3. 点击 Products找到下载网址：[https://www.vmware.com/products/desktop-hypervisor/workstation-and-fusion](https://www.vmware.com/products/desktop-hypervisor/workstation-and-fusion)
 
 4. 注册登录
 
@@ -43,6 +43,8 @@ Linux 是一种开源且免费的操作系统内核，是由芬兰计算机科�
 ![image-20251107170441532](./assets/image-20251107170441532.png)
 
 11. 打开Windows控制面板 → 程序和功能 → 添加或者删除Windows功能 ，使用VMware要开启虚拟机程序监控平台
+
+![image-20251110174843901](./assets/image-20251110174843901.png)
 
 ### 2.在VMware中安装Ubuntu系统
 
