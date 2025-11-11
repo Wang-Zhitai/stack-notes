@@ -52,7 +52,7 @@ Linux 是一种开源且免费的操作系统内核，是由芬兰计算机科�
 
 1. 首先要新建一个虚拟机，`先不安装系统`，为了性能最好，`CPU核心数`给到最大，`内存`也给到限定范围内的最大值，推荐`IO控制器选LSI Logic SAS`，然后`虚拟磁盘类型选NVME`，然后选择将`虚拟磁盘储存为单个文件`
 2. 打开高级设置将收集调试信息设置为`无`，勾选`禁用内存页面修整`可减少卡顿（非常重要，否则虚拟机会将物理内存中的一些数据同步到硬盘上。读取硬盘是虚拟机运行缓慢的主要原因），勾选`为启用了Hyper-V的主机禁用侧通道缓解`
-3. 固件类型选`UEFI`
+3. 固件类型选`BIOS`
 4. 配置好硬件信息后挂载CD/DVD到自己下载的ISO文件，然后开机安装系统，安装成功后关机，把CD/DVD驱动器直接移除掉，再开机就是正常从自己配置的虚拟磁盘里启动了
 
 
@@ -525,3 +525,33 @@ tar -xvf atk-dlrk3506_linux6.1_release_v1.2.0_20250718.tar.gz
 
 5. 然后可以选**下载镜像**能够单独烧录各个镜像，也能选**升级固件**一次性烧录整个update.img
 6. 不推荐用 Ubuntu 对 RK 开发板进行烧录，不好用
+
+
+
+# 四、配置交叉编译环境
+
+1. Linux内核源码是需要指定架构和交叉编译器才能进行编译的
+
+2. 指定架构
+
+```shell
+export ARCH=riscv
+# 这里的riscv指定的是riscv架构，还可以选arm、arm64之类的，根据自己的目标架构选择
+```
+
+3. 指定交叉编译器
+
+```shell
+export CROSS_COMPILE=/home/wzt/riscv64-wangzai-linux-gnu-gcc/bin/riscv64-unknown-linux-gnu-
+#这里的路径指的是自己安装的交叉编译工具链的路径，因人而异
+```
+
+```shell
+network={
+	ssid="deyintech"
+	psk="zhimakaimen"
+	key_mgmt=WPA-PSK
+	priority=10
+}
+```
+
