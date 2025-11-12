@@ -35,6 +35,10 @@ WIFI CONNECTED
 WIFI GOT IP
 
 OK
+
+/* 如果输入了错误的密码，响应+CWJAP:2 */
+AT+CWJAP="deyintech","afasdfsdaf"
++CWJAP:2
     
 /* 断开连接 */
 WIFI DISCONNECT
