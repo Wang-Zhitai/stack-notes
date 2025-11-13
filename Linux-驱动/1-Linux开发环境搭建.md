@@ -16,7 +16,16 @@ Linux 是一种开源且免费的操作系统内核，是由芬兰计算机科�
 
 ## （一）安装Ubuntu
 
-### 1.下载VMWare Workstation Pro
+> 现在主流的Linux环境有两个：
+>
+> * 一个是安装WSL，这个是用起来最方便且性能最好的方式，基本上和Windows无缝协同，但是可能会有一些兼容问题，不过大部分都是可以解决的，只是不太适合新手。
+> * 另一个是安装VMware虚拟机，然后安装一个Ubuntu到里面，这样的Ubuntu和你在物理机上装一个Ubuntu是没有什么差别的，基本上是原生Ubuntu环境，但是缺点是性能会低一些，而且和Windows协同工作没有那么舒服。
+>
+> 当然，想用哪个自己选就行，都可以的。
+
+### 1.VMware+Ubuntu虚拟机
+
+#### （1）下载VMWare Workstation Pro
 
 1. 进入 VMware官网：[VMware by Broadcom - Cloud Computing for the Enterprise](https://www.vmware.com/)
 
@@ -48,14 +57,84 @@ Linux 是一种开源且免费的操作系统内核，是由芬兰计算机科�
 
 12. 安装VMware的时候记得把安装目录的文件夹名字改成VMware Workstation，否则可能会有一些奇怪的BUG，说找不到什么文件之类的提示出现
 
-### 2.在VMware中安装Ubuntu系统
+#### （2）在VMware中安装Ubuntu系统
 
 1. 首先要新建一个虚拟机，`先不安装系统`，为了性能最好，`CPU核心数`给到最大，`内存`也给到限定范围内的最大值，推荐`IO控制器选LSI Logic SAS`，然后`虚拟磁盘类型选NVME`，然后选择将`虚拟磁盘储存为单个文件`
 2. 打开高级设置将收集调试信息设置为`无`，勾选`禁用内存页面修整`可减少卡顿（非常重要，否则虚拟机会将物理内存中的一些数据同步到硬盘上。读取硬盘是虚拟机运行缓慢的主要原因），勾选`为启用了Hyper-V的主机禁用侧通道缓解`
 3. 固件类型选`BIOS`
 4. 配置好硬件信息后挂载CD/DVD到自己下载的ISO文件，然后开机安装系统，安装成功后关机，把CD/DVD驱动器直接移除掉，再开机就是正常从自己配置的虚拟磁盘里启动了
 
+### 2.Windows+WSL2
 
+#### （1）安装WSL2
+
+1. 首先要在BIOS里面打开虚拟化的支持，一般电脑都是打开的
+2. 打开Windows控制面板 → 程序和功能 → 添加或者删除Windows功能 ，使用VMware要开启虚拟机平台（Virtual Machine Platform）和适用于Linux的Windows子系统
+
+![image-20251106161521996](./assets/image-20251106161521996.png)
+
+3. 开windows的命令提示符，输入指令切换wsl的版本到wsl2
+
+```powershell
+wsl --set-default-version 2
+```
+
+4. 等待wsl2安装成功后输入指令查看是否成功，如果出现下图，则已经更新完成
+
+```powershell
+wsl --update
+```
+
+![image-20251106162213348](./assets/image-20251106162213348.png)
+
+5. 然后安装Ubuntu，打开微软应用商店搜索Ubuntu，然后下载想要的版本即可
+
+![image-20251106162347656](./assets/image-20251106162347656.png)
+
+6. 安装完成ubuntu后我们点击开始菜单里的Ubuntu进入系统，一开始会显示正在安装，安装完成后会提示`Enter new UNIX username：`这个时候我们输入自己的用户名就好了，然后会提示``New password：`这个时候输入自己的密码，然后会提示`Retype new password：`然后我们重新输入一次密码就行
+
+#### （2）将WSL2里的Ubuntu移动到D盘
+
+1. 默认`WSL2`都会把`Ubuntu`安装在`C`盘，太乱了，我们给他搞到`D`盘里
+2. 列出已安装的 WSL 分发版：在 `CMD` 或 `PowerShell` 中执行：
+
+```powershell
+wsl -l -v
+```
+
+* 你会看到类似这样的输出，确认你的 `Ubuntu` 名称（例如 `Ubuntu-22.04`）和它正在运行（状态为 `Running`），还有版本`2`代表了`WSL2`。
+
+```powershell
+  NAME            STATE           VERSION
+* Ubuntu-20.04    Running         2
+```
+
+3. 关闭所有 `WSL` 实例：确保接下来操作无误，先关闭 `WSL`：
+
+```powershell
+wsl --shutdown
+```
+
+4. 再次运行 `wsl -l -v`，状态应该变为 `Stopped`
+
+```powershell
+  NAME            STATE           VERSION
+* Ubuntu-20.04    Stopped         2
+```
+
+5. 输入指令移动`wsl`安装位置
+
+```powershell
+wsl --manage Ubuntu-20.04 --move D:\WSL\Ubuntu-20.04
+```
+
+* `--manage --move`：将发行版移动到新位置的指令
+* `Ubuntu-20.04`：这里是上面指令列出来的发行版名称
+* `D:\WSL\Ubuntu-20.04`：这里是要移动到的目标文件夹
+
+6. 移动后要修改目标文件夹的属性，给予`Users`账户完全控制权限，这样的话`WSL`启动时候就不会报错了
+
+![image-20251107094400360](./assets/image-20251107094400360.png)
 
 ## （二） Ubuntu设置
 
