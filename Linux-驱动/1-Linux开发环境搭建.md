@@ -19,7 +19,7 @@ Linux 是一种开源且免费的操作系统内核，是由芬兰计算机科�
 > 现在主流的Linux环境有两个：
 >
 > * 一个是安装WSL，这个是用起来最方便且性能最好的方式，基本上和Windows无缝协同，但是可能会有一些兼容问题，不过大部分都是可以解决的，只是不太适合新手。
-> * 另一个是安装VMware虚拟机，然后安装一个Ubuntu到里面，这样的Ubuntu和你在物理机上装一个Ubuntu是没有什么差别的，基本上是原生Ubuntu环境，但是缺点是性能会低一些，而且和Windows协同工作没有那么舒服。
+> * 另一个是安装VMware虚拟机，然后安装一个Ubuntu到里面，这样的Ubuntu和你在物理机上装一个Ubuntu是没有什么差别的，兼容性稳定性隔离性都是最好的，基本上是原生Ubuntu环境，但是缺点是性能会低一些，而且和Windows协同工作没有那么舒服，一般工作都用VMware。
 >
 > 当然，想用哪个自己选就行，都可以的。
 
@@ -47,22 +47,22 @@ Linux 是一种开源且免费的操作系统内核，是由芬兰计算机科�
 
 9. 滚动到下面，点击下载 Download VMware Workstation Pro (Free)![image-20251107170355233](./assets/image-20251107170355233.png)
 
-10. 下载并安装最新版即可（注意：目前25H2有全屏后不显示工具栏的BUG，而且没有简体中文建议先用17.6.4的最新版）
+10. 下载并安装最新版即可
 
 ![image-20251107170441532](./assets/image-20251107170441532.png)
 
-11. 打开Windows控制面板 → 程序和功能 → 添加或者删除Windows功能 ，使用VMware要开启虚拟机程序监控平台
-
-![image-20251110174843901](./assets/image-20251110174843901.png)
-
-12. 安装VMware的时候记得把安装目录的文件夹名字改成VMware Workstation，否则可能会有一些奇怪的BUG，说找不到什么文件之类的提示出现
+11. 安装VMware的时候记得把安装目录的文件夹名字改成VMware Workstation，否则可能会有一些奇怪的BUG，说找不到什么文件之类的提示出现
+12. VMware汉化：[VMware Workstation Pro 25H2 Windows平台汉化解决方案-CSDN博客](https://blog.csdn.net/2511_93252626/article/details/153418635)
 
 #### （2）在VMware中安装Ubuntu系统
 
-1. 首先要新建一个虚拟机，`先不安装系统`，为了性能最好，`CPU核心数`给到最大，`内存`也给到限定范围内的最大值，推荐`IO控制器选LSI Logic SAS`，然后`虚拟磁盘类型选NVME`，然后选择将`虚拟磁盘储存为单个文件`
-2. 打开高级设置将收集调试信息设置为`无`，勾选`禁用内存页面修整`可减少卡顿（非常重要，否则虚拟机会将物理内存中的一些数据同步到硬盘上。读取硬盘是虚拟机运行缓慢的主要原因），勾选`为启用了Hyper-V的主机禁用侧通道缓解`
-3. 固件类型选`BIOS`
-4. 配置好硬件信息后挂载CD/DVD到自己下载的ISO文件，然后开机安装系统，安装成功后关机，把CD/DVD驱动器直接移除掉，再开机就是正常从自己配置的虚拟磁盘里启动了
+0. 下载Ubuntu系统镜像：[USTC Open Source Software Mirror](https://mirrors.ustc.edu.cn/)
+
+1. 首先要新建一个虚拟机，`先不安装系统`，为了性能最好，`CPU核心数`给到最大，`内存`也给到限定范围内的最大值，选择将`虚拟磁盘储存为单个文件`，如果开发Linux和安卓的话虚拟磁盘建议给`500G`，同时保证你的物理磁盘空间足够
+2. 打开高级设置将收集调试信息设置为`无`，勾选`禁用内存页面修整（Memory Page Trimming）`可减少卡顿，然后`为启用了Hyper-V的主机禁用侧通道缓解`
+3. 配置好硬件信息后挂载CD/DVD到自己下载的ISO文件，然后开机安装系统，安装成功后关机，把CD/DVD驱动器直接移除掉，再开机就是正常从自己配置的虚拟磁盘里启动了
+4. 将网络配置成桥接模式可以使虚拟机接入物理网络
+5. 新版VMware使用Ctrl+Alt+Enter可以快速切换全屏
 
 ### 2.Windows+WSL2
 
@@ -242,7 +242,7 @@ sudo apt-get install vim-gtk -y
 sudo apt-get install samba -y
 ```
 
-3. 给需要共享的文件夹设置权限为777，修改配置文件：
+3. 修改SMB配置文件：
 
 ```shell
 sudo vim /etc/samba/smb.conf
@@ -252,15 +252,11 @@ sudo vim /etc/samba/smb.conf
 
 ```c
 [Ubuntu]
-comment = Ubuntu-20.04.6
+comment = Ubuntu
 path = /home/wzt
 public = yes
 writeable = yes
 valid users = wzt
-create mask = 0777
-directory mask = 0777
-force user = wzt
-force group = wzt
 available = yes
 unix charset = UTF-8
 dos charset = cp936
@@ -279,8 +275,6 @@ sudo service smbd restart
 ```
 
 7. 在 Windows 上输入“win+r”弹出运行窗口，然后输入Ubuntu 的 \\\IP 访问，然后右键Samba文件夹将他映射为网络驱动器
-
-
 
 ### 7、 安装依赖
 
@@ -302,7 +296,7 @@ libmpc-dev bc python-is-python3 python2
 1. 安装SSH服务
 
 ```shell
-sudo apt-get install openssh-server
+sudo apt-get install openssh-server -y
 ```
 
 2. 启动SSH服务
@@ -311,13 +305,7 @@ sudo apt-get install openssh-server
 sudo systemctl start sshd
 ```
 
-3. 修改配置文件，配置文件中 “ PermitRootLogin prohibit-password ” 修改成 “ PermitRootLogin yes ” （记得取消注释），允许root用户登录
-
-```shell
-sudo vim /etc/ssh/sshd_config
-```
-
-4. 重启SSH服务
+3. 重启SSH服务
 
 ```shell
 sudo systemctl restart sshd
@@ -636,7 +624,7 @@ network={
 
 
 
-# 五、配置VSCode为Lin代码规范
+# 五、配置VSCode为Linux代码规范
 
 ***
 
