@@ -98,9 +98,7 @@ TYPE类型常见于PC机，按其接口形状的不同又分为三大类。
 
 ![Type C接线定义](https://woniumd.oss-cn-hangzhou.aliyuncs.com/aiot/luozhaoyong/typec-pin-define-connect.png)
 
-![10305073708]()
-
-#### USB的连接模型 
+#### USB的连接模型
 
  USB是一种主从结构。主机叫做Host，从机叫做Device（也叫做设备），集线器也被当作一种特殊的设备处理,用于扩展USB端口（扩展的USB端口可以增加USB总线上物理设备的连接）。
 
@@ -288,8 +286,6 @@ NRZI编码，如下图，实际的波形如下图的NRZI，红色的方框可以
 所以，USB2.0高速模式数据bit率是480Mb/s，USB等效时钟是240Mhz，并不是480Mhz。
 
 #### USB2.0通信时序
-
-![https://www.usbzh.com/uploadimg/202202/232239921302.jpg]()
 
 ##### USB通讯原理 
 
