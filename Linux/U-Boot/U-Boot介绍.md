@@ -1,4 +1,4 @@
-### U-Boot 简介笔
+### U-Boot 简介
 
 #### 1. **Bootloader 的作用**
 

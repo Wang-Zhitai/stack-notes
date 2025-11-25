@@ -1,3 +1,5 @@
+# Linux开发环境搭建
+
 # 一、Linux操作系统介绍
 
 Linux 是一种开源且免费的操作系统内核，是由芬兰计算机科学家 Linus Torvalds 于 1991  年开始编写，并在其后的几年中不断完善和发展而来。最初是作为个人电脑使用的，但现在已经成为了许多服务器、移动设备、超级计算机等各种类型的硬件设备上的主要操作系统。
@@ -18,7 +20,7 @@ Linux 是一种开源且免费的操作系统内核，是由芬兰计算机科�
 
 > 现在主流的Linux环境有两个：
 >
-> * 一个是安装WSL，这个是用起来最方便且性能最好的方式，基本上和Windows无缝协同，但是可能会有一些兼容问题，不过大部分都是可以解决的，只是不太适合新手。
+> * 一个是安装WSL，这个是用起来最方便且性能最好的方式，基本上和Windows无缝协同，但是可能会有一些兼容问题，因为他并不像VMware那样隔离的那么好。
 > * 另一个是安装VMware虚拟机，然后安装一个Ubuntu到里面，这样的Ubuntu和你在物理机上装一个Ubuntu是没有什么差别的，兼容性稳定性隔离性都是最好的，基本上是原生Ubuntu环境，但是缺点是性能会低一些，而且和Windows协同工作没有那么舒服，一般工作都用VMware。
 >
 > 当然，想用哪个自己选就行，都可以的。
@@ -542,18 +544,18 @@ tar -xvf atk-dlrk3506_linux6.1_release_v1.2.0_20250718.tar.gz
 >
 > SDK源码根目录下包含有 app、 buildroot、 device、 external、 tools、 u-boot 等多个目录，每个目录或其子目录会对应一个 git 工程；因为 SDK 的代码和相关文档被划分成了若干 git 仓库分别进行版本管理（所以 SDK 实际上包含有若干 git 仓库），它们按照功能、所属模块划分，分别组织到不同的目录下。
 >
-> * **app：**存放上层应用 app，以及其它的 C/C++应用程序。
-> * **buildroot：**基于 buildroot 开发的根文件系统。device/rockchip：存放各芯片板级配置文件和 Parameter 分区表文件，以及一些编译与打包固件的脚本和预备文件。
-> * **docs：**存放芯片模块开发指导文档、平台支持列表、芯片平台相关文档、 Linux开发指南等。
-> * **external：**存放所需的第三方库，包括音频、视频、网络、 recovery 等。 
-> * **kernel：**Linux 6.1 版本内核源码。
-> * **prebuilts：**存放交叉编译工具链。
-> * **rkbin：**存放 Rockchip 相关的 Binary 和工具。
-> * **rockdev：**存放编译输出固件，编译 SDK 后才会生成该文件夹。
-> * **tools：**存放 Linux 和 Windows 操作系统环境下常用的工具，包括镜像烧录工具、SD卡升级启动制作工具、批量烧录工具等，譬如RK的驱动 DriverAssitant 以及烧录工具 RKDevTool 以及 Linux_Upgrade_Tool 工具都存放在该目录。
-> * **u-boot：**基于 v2017.09 版本进行开发的 uboot 源码。
-> * **yocto：**基于 Yocto 开发的根文件系统。
-> * **build.sh：**是RK提供的一个编译脚本，使用该脚本可以方便用户快速构建出各种镜像文件以及对镜像进行打包操作，既可以一键全自动编译整个 SDK，也可以单独编译 U-Boot、 Linux Kernel、 buildroot 等，非常方便  
+> * `app：`存放上层应用 app，以及其它的 C/C++应用程序。
+> * `buildroot：`基于 buildroot 开发的根文件系统。device/rockchip：存放各芯片板级配置文件和 Parameter 分区表文件，以及一些编译与打包固件的脚本和预备文件。
+> * `docs：`存放芯片模块开发指导文档、平台支持列表、芯片平台相关文档、 Linux开发指南等。
+> * `external：`存放所需的第三方库，包括音频、视频、网络、 recovery 等。 
+> * `kernel：`Linux 6.1 版本内核源码。
+> * `prebuilts：`存放交叉编译工具链。
+> * `rkbin：`存放 Rockchip 相关的 Binary 和工具。
+> * `rockdev：`存放编译输出固件，编译 SDK 后才会生成该文件夹。
+> * `tools：`存放 Linux 和 Windows 操作系统环境下常用的工具，包括镜像烧录工具、SD卡升级启动制作工具、批量烧录工具等，譬如RK的驱动 DriverAssitant 以及烧录工具 RKDevTool 以及 Linux_Upgrade_Tool 工具都存放在该目录。
+> * `u-boot：`基于 v2017.09 版本进行开发的 uboot 源码。
+> * `yocto：`基于 Yocto 开发的根文件系统。
+> * `build.sh：`是RK提供的一个编译脚本，使用该脚本可以方便用户快速构建出各种镜像文件以及对镜像进行打包操作，既可以一键全自动编译整个 SDK，也可以单独编译 U-Boot、 Linux Kernel、 buildroot 等，非常方便  
 
 ## （五） SDK镜像文件目录介绍
 
