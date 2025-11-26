@@ -382,9 +382,9 @@ Sysfs 的诞生与 Linux 设备模型的革新紧密相关。新的设备模型�
 
 
 
-#### （7）attribute
+### 2.5.4 attribute
 
-##### attribute 是什么？
+#### （1）attribute 是什么？
 
 1. **attribute** “**属性**”。在 Linux 内核的设备模型中，它代表一个内核对象（`kobject`）的某个可被查看或修改的“属性”或“设置项”。它的核心思想是：**将一个内核对象的内部变量，通过 sysfs 虚拟文件系统，以一个普通的文件形式暴露给用户空间。**
 - 用户可以通过 `cat` 命令**读取**该文件，来查看该属性的值。
@@ -397,7 +397,7 @@ Sysfs 的诞生与 Linux 设备模型的革新紧密相关。新的设备模型�
 
 
 
-##### 举例：LED
+#### （2）举例：LED
 
 假设我们有一个LED 设备，它在 Sysfs 中的路径是 `/sys/class/leds/myled/`。在这个目录下，你可能会看到：
 
@@ -415,7 +415,7 @@ brightness  max_brightness  trigger
 
 
 
-##### 数据结构
+#### （3）数据结构
 
 在内核代码中，一个 attribute 主要用 `struct attribute` 和更具体的 `struct device_attribute` 等结构体来表示。
 
@@ -475,7 +475,7 @@ brightness  max_brightness  trigger
 
 
 
-##### 工作原理：从用户空间到内核空间的调用链
+#### （4）工作原理：从用户空间到内核空间的调用链
 
 当你在用户空间执行 `cat /sys/class/xxx/my_attr` 时，背后发生了一系列事情：
 
@@ -494,7 +494,7 @@ brightness  max_brightness  trigger
 
 
 
-##### attribute 的类型
+#### （5）attribute 的类型
 
 根据所属的内核对象不同，有不同类型的 Attribute 结构体：
 
@@ -656,4 +656,135 @@ device_del() → put_device() →
 
 
 # 3. device、device_driver
+
+Linux内核中有一半的代码是和设备驱动相关的！
+
+* 设备和驱动分开设计增强了驱动的灵活性
+* 设备和驱动通过bus这个纽带关联在了一起
+
+```c
+struct device {
+	struct kobject kobj;			// 内嵌的kobject，用于sysfs表示和引用计数管理
+	struct device		*parent;	// 父设备指针，用于构建设备层次结构
+
+	struct device_private	*p;		// 设备驱动相关的私有数据，由设备核心内部使用
+
+	const char		*init_name; 	// 设备的初始名称，在注册时可被覆盖
+	const struct device_type *type;		// 设备类型描述符
+
+	const struct bus_type	*bus;		// 设备所属的总线类型，该设备所在的总线对象指针
+	struct device_driver *driver;		// 绑定到此设备的驱动程序指针
+
+	void		*platform_data;	// 平台特定数据，用于保存具体的平台相关的数据，具体的驱动模块可以将一些私有的数据暂存在这里，需要使用的石时候再拿出来，因此设备模型并不关系该指针的实际含义
+	void		*driver_data;	// 驱动程序数据，可通过dev_set_drvdata/dev_get_drvdata访问
+
+	struct mutex		mutex;	// 互斥锁，用于同步对驱动程序的调用
+
+	struct dev_links_info	links;		// 设备链接信息（电源管理相关）
+	struct dev_pm_info	power;		// 电源管理信息
+	struct dev_pm_domain	*pm_domain;	// 电源管理域
+
+#ifdef CONFIG_ENERGY_MODEL
+	struct em_perf_domain	*em_pd;		// 能量模型性能域
+#endif
+
+#ifdef CONFIG_PINCTRL
+	struct dev_pin_info	*pins;		// 引脚控制信息
+#endif
+	struct dev_msi_info	msi;		// MSI中断信息
+
+#ifdef CONFIG_ARCH_HAS_DMA_OPS
+	const struct dma_map_ops *dma_ops;	// DMA映射操作函数指针
+#endif
+	u64		*dma_mask;		// DMA掩码（如果设备支持DMA）
+	u64		coherent_dma_mask;	// 一致性DMA掩码，用于alloc_coherent映射
+	u64		bus_dma_limit;		// 上游DMA约束限制
+	const struct bus_dma_region *dma_range_map; // DMA区域映射表
+
+	struct device_dma_parameters *dma_parms;	// DMA参数
+
+	struct list_head	dma_pools;	// DMA内存池列表（如果设备支持DMA）
+
+#ifdef CONFIG_DMA_DECLARE_COHERENT
+	struct dma_coherent_mem	*dma_mem; 	// 一致性内存覆盖的内部结构
+#endif
+#ifdef CONFIG_DMA_CMA
+	struct cma *cma_area;			// 用于DMA分配的连续内存区域
+#endif
+#ifdef CONFIG_SWIOTLB
+	struct io_tlb_mem *dma_io_tlb_mem;	// SWIOTLB内存描述符
+#endif
+#ifdef CONFIG_SWIOTLB_DYNAMIC
+	struct list_head dma_io_tlb_pools;	// 动态IO TLB池列表
+	spinlock_t dma_io_tlb_lock;		// IO TLB自旋锁
+	bool dma_uses_io_tlb;			// 标记设备是否使用IO TLB
+#endif
+
+	struct dev_archdata	archdata;	// 架构特定数据
+
+	struct device_node	*of_node; 	// 关联的设备树节点
+	struct fwnode_handle	*fwnode; 	// 固件设备节点
+
+#ifdef CONFIG_NUMA
+	int		numa_node;		// 设备所在的NUMA节点
+#endif
+	dev_t			devt;		// 设备号，分为主设备号和从设备号，在需要以设备节点的形式（字符设备和块设备）向用户空间提供接口的设备中，当作设备号使用。用于创建sysfs中的"/sys/dev/*"下的对应目录
+	u32			id;		// 设备实例ID
+
+	spinlock_t		devres_lock;	// 设备资源锁
+	struct list_head	devres_head;	// 设备资源链表头
+
+	const struct class	*class;		// 设备所属的类
+	const struct attribute_group **groups;	// 可选的属性组数组
+
+	void	(*release)(struct device *dev);	// 设备释放回调函数
+	struct iommu_group	*iommu_group;	// IOMMU组
+	struct dev_iommu	*iommu;		// IOMMU特定数据
+
+	struct device_physical_location *physical_location; // 设备物理位置信息
+
+	enum device_removable	removable;	// 设备可移动性标识
+
+	// 各种状态标志位
+	bool			offline_disabled:1;	// 是否禁止离线
+	bool			offline:1;		// 是否处于离线状态
+	bool			of_node_reused:1;	// 设备树节点是否被重用
+	bool			state_synced:1;		// 状态是否已同步
+	bool			can_match:1;		// 是否可以匹配驱动
+
+#if defined(CONFIG_ARCH_HAS_SYNC_DMA_FOR_DEVICE) || \
+    defined(CONFIG_ARCH_HAS_SYNC_DMA_FOR_CPU) || \
+    defined(CONFIG_ARCH_HAS_SYNC_DMA_FOR_CPU_ALL)
+	bool			dma_coherent:1;		// DMA是否一致性映射
+#endif
+#ifdef CONFIG_DMA_OPS_BYPASS
+	bool			dma_ops_bypass : 1;	// 是否绕过DMA操作
+#endif
+#ifdef CONFIG_DMA_NEED_SYNC
+	bool			dma_skip_sync:1;	// 是否跳过DMA同步
+#endif
+#ifdef CONFIG_IOMMU_DMA
+	bool			dma_iommu:1;		// 是否使用IOMMU进行DMA
+#endif
+};
+```
+
+
+
+# 4. bus
+
+* 总线是Linux设备驱动模型的核心
+* 总线可以是物理的也可以是虚拟的
+
+
+
+# 5. class
+
+
+
+# 6. platform device
+
+
+
+# 7. container_of
 
