@@ -507,9 +507,9 @@ brightness  max_brightness  trigger
 
 
 
-### 2.6 设备生命周期示例（集成 sysfs/attribute/uevent）
+## 2.6 设备生命周期示例（集成 sysfs/attribute/uevent）
 
-#### 2.6.1 创建与初始化
+### 2.6.1 创建与初始化
 
 ```c
 // 驱动探测函数中创建设备
@@ -536,7 +536,7 @@ static int my_driver_probe(struct platform_device *pdev)
 
 
 
-#### 2.6.2 sysfs 属性组定义
+### 2.6.2 sysfs 属性组定义
 
 ```c
 // 定义设备属性
@@ -570,7 +570,7 @@ static const struct attribute_group *my_dev_attr_groups[] = {
 
 
 
-#### 2.6.3 用户空间交互效果
+### 2.6.3 用户空间交互效果
 
 ```shell
 # 设备注册时自动触发uevent，被udev捕获
@@ -593,7 +593,7 @@ echo add > /sys/devices/.../my_device/uevent
 
 
 
-#### 2.6.4 注销与清理
+### 2.6.4 注销与清理
 
 ```c
 static int my_driver_remove(struct platform_device *pdev)
@@ -623,7 +623,7 @@ static void my_dev_release(struct device *dev)
 
 
 
-#### 2.6.5 完整交互流程
+### 2.6.5 完整交互流程
 
 **内核空间流程：**
 
