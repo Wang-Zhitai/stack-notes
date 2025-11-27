@@ -348,25 +348,23 @@ Sysfs 的诞生与 Linux 设备模型的革新紧密相关。新的设备模型�
 
 1. **在 `/sys/class/input/` 下找到它**：
 
-	```shell
-	ls /sys/class/input/
-	# 你可能会看到 input0, input1, mouse0 等目录
-	ls /sys/class/input/mouse0/device/
-	# 你会看到很多文件，如 name, id, capabilities
-	cat /sys/class/input/mouse0/device/name
-	# 可能会输出 "Logitech USB Receiver" 之类的设备名
-	```
+  ```shell
+  ls /sys/class/input/
+  # 你可能会看到 input0, input1, mouse0 等目录
+  ls /sys/class/input/mouse0/device/
+  # 你会看到很多文件，如 name, id, capabilities
+  cat /sys/class/input/mouse0/device/name
+  # 可能会输出 "Logitech USB Receiver" 之类的设备名
+  ```
 
 2. **通过符号链接找到它的真实位置**：
 
-	```shell
-	# 在 device 目录下，有一个到 /sys/devices/ 的符号链接
-	ls -l /sys/class/input/mouse0/device
-	# 你会看到类似 ‘device -> ../../../usb1/1-1/1-1.2/1-1.2:1.0/...’ 的链接
-	# 跟随这个链接，你就能在 /sys/devices/ 下找到这个USB设备的完整信息，包括其所属的USB总线、电源、速度等。
-	```
-
-
+  ```shell
+  # 在 device 目录下，有一个到 /sys/devices/ 的符号链接
+  ls -l /sys/class/input/mouse0/device
+  # 你会看到类似 ‘device -> ../../../usb1/1-1/1-1.2/1-1.2:1.0/...’ 的链接
+  # 跟随这个链接，你就能在 /sys/devices/ 下找到这个USB设备的完整信息，包括其所属的USB总线、电源、速度等。
+  ```
 
 #### （6）sysfs 与 procfs 的区别
 
@@ -434,50 +432,49 @@ brightness  max_brightness  trigger
   ```
 
 2. `attribute`结构体比较底层，一般会包含在其他结构体里面
-	
-	```c
-	struct bin_attribute {
-		struct attribute	attr;// 基础属性：文件名和权限
-		size_t			size;// 文件大小（字节），0表示大小不固定
-		void			*private;// 驱动私有数据，可在回调函数中使用
-		struct address_space *(*f_mapping)(void);//返回与此文件关联的address_space映射，通常用于需要与页缓存交互的高级场景，大多数驱动不需要实现。
-		ssize_t (*read)(struct file *, struct kobject *, const struct bin_attribute *,
-				char *, loff_t, size_t);// 传统读操作 - 从二进制属性读取数据
-		ssize_t (*read_new)(struct file *, struct kobject *, const struct bin_attribute *,
-				    char *, loff_t, size_t);// 新的读操作 - 提供文件上下文信息
-		ssize_t (*write)(struct file *, struct kobject *, const struct bin_attribute *,
-				 char *, loff_t, size_t);// 传统写操作 - 向二进制属性写入数据
-		ssize_t (*write_new)(struct file *, struct kobject *,
-				     const struct bin_attribute *, char *, loff_t, size_t);// 新的写操作 - 提供文件上下文信息
-		loff_t (*llseek)(struct file *, struct kobject *, const struct bin_attribute *,
-				 loff_t, int);// 寻址操作 - 改变当前文件读写位置
-		int (*mmap)(struct file *, struct kobject *, const struct bin_attribute *attr,
-			    struct vm_area_struct *vma);// 内存映射操作 - 将文件映射到用户进程的地址空间
+
+```c
+struct bin_attribute {
+	struct attribute	attr;// 基础属性：文件名和权限
+	size_t			size;// 文件大小（字节），0表示大小不固定
+	void			*private;// 驱动私有数据，可在回调函数中使用
+	struct address_space *(*f_mapping)(void);//返回与此文件关联的address_space映射，通常用于需要与页缓存交互的高级场景，大多数驱动不需要实现。
+	ssize_t (*read)(struct file *, struct kobject *, const struct bin_attribute *,
+			char *, loff_t, size_t);// 传统读操作 - 从二进制属性读取数据
+	ssize_t (*read_new)(struct file *, struct kobject *, const struct bin_attribute *,
+			    char *, loff_t, size_t);// 新的读操作 - 提供文件上下文信息
+	ssize_t (*write)(struct file *, struct kobject *, const struct bin_attribute *,
+			 char *, loff_t, size_t);// 传统写操作 - 向二进制属性写入数据
+	ssize_t (*write_new)(struct file *, struct kobject *,
+			     const struct bin_attribute *, char *, loff_t, size_t);// 新的写操作 - 提供文件上下文信息
+	loff_t (*llseek)(struct file *, struct kobject *, const struct bin_attribute *,
+			 loff_t, int);// 寻址操作 - 改变当前文件读写位置
+	int (*mmap)(struct file *, struct kobject *, const struct bin_attribute *attr,
+		    struct vm_area_struct *vma);// 内存映射操作 - 将文件映射到用户进程的地址空间
+};
+
+struct attribute_group {
+	const char		*name;// 可选的组名，如果设置则创建子目录
+	umode_t			(*is_visible)(struct kobject *,
+					      struct attribute *, int);// 检查普通属性是否可见的回调函数
+	umode_t			(*is_bin_visible)(struct kobject *,
+						  const struct bin_attribute *, int);// 检查二进制属性是否可见的回调函数
+	size_t			(*bin_size)(struct kobject *,
+					    const struct bin_attribute *,// 动态计算二进制属性大小的回调函数
+					    int);
+	struct attribute	**attrs;// 普通属性指针数组，以NULL结束
+	union {
+		const struct bin_attribute	*const *bin_attrs;// 传统二进制属性数组
+		const struct bin_attribute	*const *bin_attrs_new;// 新版二进制属性数组
 	};
-	
-	struct attribute_group {
-		const char		*name;// 可选的组名，如果设置则创建子目录
-		umode_t			(*is_visible)(struct kobject *,
-						      struct attribute *, int);// 检查普通属性是否可见的回调函数
-		umode_t			(*is_bin_visible)(struct kobject *,
-							  const struct bin_attribute *, int);// 检查二进制属性是否可见的回调函数
-		size_t			(*bin_size)(struct kobject *,
-						    const struct bin_attribute *,// 动态计算二进制属性大小的回调函数
-						    int);
-		struct attribute	**attrs;// 普通属性指针数组，以NULL结束
-		union {
-			const struct bin_attribute	*const *bin_attrs;// 传统二进制属性数组
-			const struct bin_attribute	*const *bin_attrs_new;// 新版二进制属性数组
-		};
-	};
-	```
-	
+};
+```
 
 
 
 #### （4）工作原理：从用户空间到内核空间的调用链
 
-当你在用户空间执行 `cat /sys/class/xxx/my_attr` 时，背后发生了一系列事情：
+当你在用户空间执行读取（`show`）操作 `cat /sys/class/xxx/my_attr` 时，背后发生了一系列事情：
 
 1. **VFS 拦截**：VFS 接收到读文件请求，发现这个文件属于 sysfs。
 2. **路由到 Kernfs**：VFS 将操作路由到 Kernfs（Sysfs 的基础框架）。
@@ -490,7 +487,7 @@ brightness  max_brightness  trigger
 6. **数据传递**：Kernfs 负责将 `buf` 中的数据从内核空间拷贝到用户空间。
 7. **用户显示**：`cat` 命令接收到数据并将其打印在终端上。
 
-**写入（`store`）的过程与此类似，方向相反。**
+写入（`store`）的过程与此类似，方向相反。
 
 
 
@@ -662,110 +659,156 @@ Linux内核中有一半的代码是和设备驱动相关的！
 * 设备和驱动分开设计增强了驱动的灵活性
 * 设备和驱动通过bus这个纽带关联在了一起
 
+
+
+## 3.1 device
+
 ```c
 struct device {
-	struct kobject kobj;			// 内嵌的kobject，用于sysfs表示和引用计数管理
-	struct device		*parent;	// 父设备指针，用于构建设备层次结构
+	struct kobject kobj;                    // 内核对象基础结构
+	struct device		*parent;         // 指向父设备的指针
 
-	struct device_private	*p;		// 设备驱动相关的私有数据，由设备核心内部使用
+	struct device_private	*p;             // 设备私有数据指针
 
-	const char		*init_name; 	// 设备的初始名称，在注册时可被覆盖
-	const struct device_type *type;		// 设备类型描述符
+	const char		*init_name;       // 设备对象名称，在sysfs中表现为一个目录的名字
+	const struct device_type *type;         // 设备类型信息
 
-	const struct bus_type	*bus;		// 设备所属的总线类型，该设备所在的总线对象指针
-	struct device_driver *driver;		// 绑定到此设备的驱动程序指针
+	const struct bus_type	*bus;           // 设备所属总线对象指针
+	struct device_driver *driver;           // 绑定到此设备的驱动，用于标识此设备是否与他的驱动绑定，如果是NULL则没有绑定驱动
+	void		*platform_data;     // 一个指针，用于保存平台特定的设备数据，可以暂存一些私有数据
+	void		*driver_data;       // 驱动私有数据
+	struct mutex		mutex;          // 设备访问互斥锁
 
-	void		*platform_data;	// 平台特定数据，用于保存具体的平台相关的数据，具体的驱动模块可以将一些私有的数据暂存在这里，需要使用的石时候再拿出来，因此设备模型并不关系该指针的实际含义
-	void		*driver_data;	// 驱动程序数据，可通过dev_set_drvdata/dev_get_drvdata访问
-
-	struct mutex		mutex;	// 互斥锁，用于同步对驱动程序的调用
-
-	struct dev_links_info	links;		// 设备链接信息（电源管理相关）
-	struct dev_pm_info	power;		// 电源管理信息
-	struct dev_pm_domain	*pm_domain;	// 电源管理域
+	struct dev_links_info	links;          // 设备间依赖链接信息
+	struct dev_pm_info	power;           // 电源管理相关数据
+	struct dev_pm_domain	*pm_domain;     // 电源管理域指针，电源管理相关的逻辑
 
 #ifdef CONFIG_ENERGY_MODEL
-	struct em_perf_domain	*em_pd;		// 能量模型性能域
+	struct em_perf_domain	*em_pd;         // 能效模型性能域指针
 #endif
 
 #ifdef CONFIG_PINCTRL
-	struct dev_pin_info	*pins;		// 引脚控制信息
+	struct dev_pin_info	*pins;           // 引脚控制信息
 #endif
-	struct dev_msi_info	msi;		// MSI中断信息
-
+	struct dev_msi_info	msi;             // MSI中断相关信息
 #ifdef CONFIG_ARCH_HAS_DMA_OPS
-	const struct dma_map_ops *dma_ops;	// DMA映射操作函数指针
+	const struct dma_map_ops *dma_ops;     // DMA映射操作函数指针
 #endif
-	u64		*dma_mask;		// DMA掩码（如果设备支持DMA）
-	u64		coherent_dma_mask;	// 一致性DMA掩码，用于alloc_coherent映射
-	u64		bus_dma_limit;		// 上游DMA约束限制
-	const struct bus_dma_region *dma_range_map; // DMA区域映射表
+	u64		*dma_mask;          // DMA地址掩码
+	u64		coherent_dma_mask;   // 一致性DMA掩码
+	u64		bus_dma_limit;       // 总线DMA限制
+	const struct bus_dma_region *dma_range_map; // DMA内存区域映射
 
-	struct device_dma_parameters *dma_parms;	// DMA参数
+	struct device_dma_parameters *dma_parms; // DMA传输参数
 
-	struct list_head	dma_pools;	// DMA内存池列表（如果设备支持DMA）
+	struct list_head	dma_pools;       // DMA内存池链表
 
 #ifdef CONFIG_DMA_DECLARE_COHERENT
-	struct dma_coherent_mem	*dma_mem; 	// 一致性内存覆盖的内部结构
+	struct dma_coherent_mem	*dma_mem;       // 一致性DMA内存区域
 #endif
 #ifdef CONFIG_DMA_CMA
-	struct cma *cma_area;			// 用于DMA分配的连续内存区域
+	struct cma *cma_area;                  // 连续内存分配器区域
 #endif
 #ifdef CONFIG_SWIOTLB
-	struct io_tlb_mem *dma_io_tlb_mem;	// SWIOTLB内存描述符
+	struct io_tlb_mem *dma_io_tlb_mem;     // IO TLB内存管理
 #endif
 #ifdef CONFIG_SWIOTLB_DYNAMIC
-	struct list_head dma_io_tlb_pools;	// 动态IO TLB池列表
-	spinlock_t dma_io_tlb_lock;		// IO TLB自旋锁
-	bool dma_uses_io_tlb;			// 标记设备是否使用IO TLB
+	struct list_head dma_io_tlb_pools;     // 动态IO TLB池链表
+	spinlock_t dma_io_tlb_lock;            // IO TLB操作自旋锁
+	bool dma_uses_io_tlb;                  // 是否使用IO TLB标志
 #endif
 
-	struct dev_archdata	archdata;	// 架构特定数据
+	struct dev_archdata	archdata;        // 架构特定扩展数据
 
-	struct device_node	*of_node; 	// 关联的设备树节点
-	struct fwnode_handle	*fwnode; 	// 固件设备节点
+	struct device_node	*of_node;        // 设备树节点指针
+	struct fwnode_handle	*fwnode;        // 固件节点句柄
 
 #ifdef CONFIG_NUMA
-	int		numa_node;		// 设备所在的NUMA节点
+	int		numa_node;          // 所属NUMA节点编号
 #endif
-	dev_t			devt;		// 设备号，分为主设备号和从设备号，在需要以设备节点的形式（字符设备和块设备）向用户空间提供接口的设备中，当作设备号使用。用于创建sysfs中的"/sys/dev/*"下的对应目录
-	u32			id;		// 设备实例ID
+	dev_t			devt;           // 设备号，分为主设备号和次设备号，在需要以设备节点的形式提供给用户空间接口的设备中，当作设备号使用。在sysfs中，为每个具有设备号的device，创建/sys/dev/下面的对应目录
+	u32			id;              // 设备实例ID
 
-	spinlock_t		devres_lock;	// 设备资源锁
-	struct list_head	devres_head;	// 设备资源链表头
+	spinlock_t		devres_lock;     // 设备资源管理锁
+	struct list_head	devres_head;     // 设备资源链表头
 
-	const struct class	*class;		// 设备所属的类
-	const struct attribute_group **groups;	// 可选的属性组数组
+	const struct class	*class;          // 设备所属类别
+	const struct attribute_group **groups;  // 设备属性组数组
 
-	void	(*release)(struct device *dev);	// 设备释放回调函数
-	struct iommu_group	*iommu_group;	// IOMMU组
-	struct dev_iommu	*iommu;		// IOMMU特定数据
+	void	(*release)(struct device *dev); // 设备释放回调函数
+	struct iommu_group	*iommu_group;    // IOMMU分组指针
+	struct dev_iommu	*iommu;          // IOMMU设备特定数据
 
 	struct device_physical_location *physical_location; // 设备物理位置信息
 
-	enum device_removable	removable;	// 设备可移动性标识
+	enum device_removable	removable;      // 设备可移动性标识
 
-	// 各种状态标志位
-	bool			offline_disabled:1;	// 是否禁止离线
-	bool			offline:1;		// 是否处于离线状态
-	bool			of_node_reused:1;	// 设备树节点是否被重用
-	bool			state_synced:1;		// 状态是否已同步
-	bool			can_match:1;		// 是否可以匹配驱动
-
+	bool			offline_disabled:1; // 禁止离线标志
+	bool			offline:1;        // 设备离线状态
+	bool			of_node_reused:1; // 设备树节点重用标志
+	bool			state_synced:1;   // 硬件状态同步标志
+	bool			can_match:1;      // 设备可匹配驱动标志
 #if defined(CONFIG_ARCH_HAS_SYNC_DMA_FOR_DEVICE) || \
     defined(CONFIG_ARCH_HAS_SYNC_DMA_FOR_CPU) || \
     defined(CONFIG_ARCH_HAS_SYNC_DMA_FOR_CPU_ALL)
-	bool			dma_coherent:1;		// DMA是否一致性映射
+	bool			dma_coherent:1;   // DMA一致性缓存标志
 #endif
 #ifdef CONFIG_DMA_OPS_BYPASS
-	bool			dma_ops_bypass : 1;	// 是否绕过DMA操作
+	bool			dma_ops_bypass : 1; // 绕过DMA操作标志
 #endif
 #ifdef CONFIG_DMA_NEED_SYNC
-	bool			dma_skip_sync:1;	// 是否跳过DMA同步
+	bool			dma_skip_sync:1;  // 跳过DMA同步操作标志
 #endif
 #ifdef CONFIG_IOMMU_DMA
-	bool			dma_iommu:1;		// 是否使用IOMMU进行DMA
+	bool			dma_iommu:1;      // 使用IOMMU进行DMA标志
 #endif
+};
+```
+
+* 系统中每个设备都是 `struct device` 对象，内核为容纳这些设备定义了一个 `kset` 容器：`device_set`，创建后sysfs入口点为/sys/devices
+* 所有设备被分为两大类，分别是 `char` 设备和 `block` 设备，sysfs入口点在/sys/dev/block和/sys/dev/char，这两个目录下面的文件均为链接文件,这两种设备都是在内核里的devices_init()函数中被创建
+
+
+
+## 3.2 device_driver
+
+```c
+struct device_driver {
+	const char		*name;           // 驱动名称
+	const struct bus_type	*bus;           // 设备所属总线对象指针
+
+	struct module		*owner;         // 驱动所属的内核模块
+	const char		*mod_name;      // 内置模块名称
+
+	bool suppress_bind_attrs;              // 禁用sysfs绑定/解绑属性
+	enum probe_type probe_type;            // 设备探测类型
+
+	const struct of_device_id	*of_match_table;     // 设备树匹配表
+	const struct acpi_device_id	*acpi_match_table;   // ACPI匹配表
+
+	int (*probe) (struct device *dev);     // 设备探测回调函数，当总线bus中将该驱动与设备绑定的时候，内核会首先调用peobe函数
+	void (*sync_state)(struct device *dev); // 设备状态同步回调函数
+	int (*remove) (struct device *dev);    // 设备移除回调函数
+	void (*shutdown) (struct device *dev); // 设备关机回调函数（电源管理）
+	int (*suspend) (struct device *dev, pm_message_t state); // 设备挂起回调函数（电源管理）
+	int (*resume) (struct device *dev);    // 设备恢复回调函数（电源管理）
+	const struct attribute_group **groups; // 驱动属性组
+	const struct attribute_group **dev_groups; // 设备属性组
+
+	const struct dev_pm_ops *pm;           // 电源管理操作集（电源管理）
+	void (*coredump) (struct device *dev); // 设备核心转储回调函数
+
+	struct driver_private *p;              // 驱动私有数据指针
+};
+```
+
+```c
+struct driver_private {
+	struct kobject kobj;           // 该驱动内嵌的kobject
+	struct klist klist_devices;    // 该驱动管理的设备列表
+	struct klist_node knode_bus;   // 在总线驱动链表中的节点
+	struct module_kobject *mkobj;  // 该驱动所属模块的内核对象kobject指针
+	struct device_driver *driver;  // 指向本driver_private类型所属的设备驱动的指针
 };
 ```
 
@@ -773,18 +816,193 @@ struct device {
 
 # 4. bus
 
-* 总线是Linux设备驱动模型的核心
-* 总线可以是物理的也可以是虚拟的
+![image-20251127113306675](./assets/image-20251127113306675.png)
+
+* 总线是Linux设备驱动模型的核心，符合设备驱动模型的设备必须挂靠在一条总线上
+* 总线可以是物理（例如i2c）的也可以是虚拟（例如platform bus）的
+
+```c
+struct bus_type {
+	const char		*name;           // 总线类型名称
+	const char		*dev_name;       // 总线对应的设备名称
+	const struct attribute_group **bus_groups;  // 总线属性组
+	const struct attribute_group **dev_groups;  // 设备属性组
+	const struct attribute_group **drv_groups;  // 驱动属性组
+
+	int (*match)(struct device *dev, const struct device_driver *drv);  // 设备驱动匹配函数，总线用来对试图挂载到其上的设备与驱动执行的匹配操作
+	int (*uevent)(const struct device *dev, struct kobj_uevent_env *env);  // 设备事件处理函数
+	int (*probe)(struct device *dev);     // 设备探测函数
+	void (*sync_state)(struct device *dev); // 设备状态同步函数
+	void (*remove)(struct device *dev);   // 设备移除函数
+	void (*shutdown)(struct device *dev); // 设备关闭函数
+	const struct cpumask *(*irq_get_affinity)(struct device *dev,
+			unsigned int irq_vec);  // 获取中断亲和性函数
+
+	int (*online)(struct device *dev);    // 设备上线函数
+	int (*offline)(struct device *dev);   // 设备下线函数
+
+	int (*suspend)(struct device *dev, pm_message_t state);  // 设备挂起函数
+	int (*resume)(struct device *dev);    // 设备恢复函数
+
+	int (*num_vf)(struct device *dev);    // 获取虚拟功能数量函数
+
+	int (*dma_configure)(struct device *dev);  // DMA配置函数
+	void (*dma_cleanup)(struct device *dev);   // DMA清理函数
+
+	const struct dev_pm_ops *pm;          // 电源管理操作集，用来对总线上的设备进行电源管理
+
+	bool need_parent_lock;                // 是否需要父设备锁标志
+};
+```
+
+```c
+/**
+ * struct subsys_private - 子系统私有数据结构体
+ * 内核内部使用的总线子系统私有数据，实际管理挂载到总线的设备和驱动
+ */
+struct subsys_private {
+	struct kset subsys;                    // 子系统内核对象集合
+	struct kset *devices_kset;             // 设备对象集合
+	struct list_head interfaces;           // 接口链表头
+	struct mutex mutex;                    // 互斥锁
+
+	struct kset *drivers_kset;             // 驱动对象集合
+	struct klist klist_devices;            // 设备链表（实际管理挂载的设备）
+	struct klist klist_drivers;            // 驱动链表（实际管理挂载的驱动）
+	struct blocking_notifier_head bus_notifier;  // 总线通知器
+	unsigned int drivers_autoprobe:1;      // 驱动自动探测标志
+	const struct bus_type *bus;            // 指向所属总线类型
+	struct device *dev_root;               // 根设备指针
+
+	struct kset glue_dirs;                 // 粘合目录集合
+	const struct class *class;             // 关联的设备类
+
+	struct lock_class_key lock_key;        // 锁类别键
+};
+```
+
+* 任何总线都是在内核里的buses_init()函数中被创建
+
+![image-20251127140651199](./assets/image-20251127140651199.png)
 
 
 
 # 5. class
 
+* class是一种抽象，对设备进行功能上的划分
+* 设备驱动模型中的类，是将其用来作为具有同类型功能设备的一个容器
+
+![image-20251127120021283](./assets/image-20251127120021283.png)
+
+```c
+struct class {
+	const char		*name;           // 设备类别名称，会在/sys/class/目录下体现
+
+	const struct attribute_group	**class_groups;  // 类别属性组
+	const struct attribute_group	**dev_groups;    // 设备属性组
+
+	int (*dev_uevent)(const struct device *dev, struct kobj_uevent_env *env);  // 设备事件处理函数，当class下有设备变化时，会调用class的uevent回调函数
+	char *(*devnode)(const struct device *dev, umode_t *mode);  // 设备节点创建函数
+
+	void (*class_release)(const struct class *class);  // 类别释放回调函数
+	void (*dev_release)(struct device *dev);           // 设备释放回调函数
+
+	int (*shutdown_pre)(struct device *dev);           // 设备关闭前预处理函数
+
+	const struct kobj_ns_type_operations *ns_type;     // 命名空间类型操作
+	const void *(*namespace)(const struct device *dev);  // 设备命名空间获取函数
+
+	void (*get_ownership)(const struct device *dev, kuid_t *uid, kgid_t *gid);  // 设备所有权获取函数
+
+	const struct dev_pm_ops *pm;          // 电源管理操作集
+};
+```
+
+* 在sys下新建class目录，在以后的class相关操作中，class kset将作为系统中所有class内容对象的顶层kset
+
+![image-20251127140722586](./assets/image-20251127140722586.png)
+
 
 
 # 6. platform device
 
+* 集成到SOC中的大多数控制器通常都有一个共同点，即支持CPU总线的直接寻址，由于这个共性，内核在设备模型的基础上（device和device_driver）对这些设备进行了更进一步的封装，抽象出platform bus、platform device、platform driver，以便驱动工程师开发这类设备的驱动
+
+![image-20251127173620857](./assets/image-20251127173620857.png)
+
+
+
+## 6.1 platform device
+
+```c
+struct platform_device {
+	const char	*name;           // 平台设备名称
+	int		id;               // 设备实例ID，同名设备用ID区分
+	bool		id_auto;         // 是否自动分配ID标志
+	struct device	dev;           // 内嵌的基础设备结构，真正的设备结构体
+	u64		platform_dma_mask; // 平台DMA掩码
+	struct device_dma_parameters dma_parms; // DMA参数
+	u32		num_resources;    // 资源数量
+	struct resource	*resource;      // 设备资源数组（内存、IRQ等）
+
+	const struct platform_device_id	*id_entry;  // 平台设备ID表
+	/*
+	 * 强制匹配的驱动名称。不要直接设置，因为核心会释放它。
+	 * 使用driver_set_override()来设置或清除。
+	 */
+	const char *driver_override;   // 驱动覆盖名称
+
+	/* MFD单元指针 */
+	struct mfd_cell *mfd_cell;     // 多功能设备单元指针
+
+	/* 体系结构特定扩展数据 */
+	struct pdev_archdata	archdata;  // 平台设备体系结构特定数据
+};
+```
+
+
+
+## 6.2 platform driver
+
+```c
+struct platform_driver {
+	int (*probe)(struct platform_device *);        // 设备探测回调函数
+	void (*remove)(struct platform_device *);      // 设备移除回调函数
+	void (*shutdown)(struct platform_device *);    // 设备关机回调函数
+	int (*suspend)(struct platform_device *, pm_message_t state);  // 设备挂起回调函数
+	int (*resume)(struct platform_device *);       // 设备恢复回调函数
+	struct device_driver driver;                   // 内嵌的基础驱动结构，真正的驱动结构体
+	const struct platform_device_id *id_table;     // 设备ID匹配表，是平台驱动中用于设备匹配的标识表，除了name匹配外还支持传递驱动私有数据等等多种功能
+	bool prevent_deferred_probe;                   // 阻止延迟探测标志
+	/*
+	 * 对于大多数设备驱动，只要所有DMA都通过内核DMA API处理，就不需要关心此标志。
+	 * 对于一些特殊的驱动，例如VFIO驱动，它们知道如何自己管理DMA，并设置此标志，
+	 * 以便IOMMU层允许它们设置和管理自己的I/O地址空间。
+	 */
+	bool driver_managed_dma;                       // 驱动自行管理DMA标志
+};
+```
+
+* `id_table` 是平台驱动中用于**设备匹配的标识表**，除了name匹配外还支持传递驱动私有数据等等多种功能
+* 可以 cd /sys/bus/platform 看到所有的平台设备和平台驱动目录
+
 
 
 # 7. container_of
+
+`container_of` 是Linux内核中最常用的一个宏，通过成员指针获取包含他的结构体指针
+
+```c
+/**
+ * container_of - 通过结构体成员的指针获取包含它的完整结构体的指针
+ * @ptr:    指向结构体某个成员的指针
+ * @type:   包含该成员的结构体类型
+ * @member: 成员在结构体中的名称
+ * 
+ * 返回值: 指向包含该成员的完整结构体的指针
+ */
+#define container_of(ptr, type, member) ({			\
+	const typeof(((type *)0)->member) * __mptr = (ptr);	\
+	(type *)((char *)__mptr - offsetof(type, member)); })
+```
 
