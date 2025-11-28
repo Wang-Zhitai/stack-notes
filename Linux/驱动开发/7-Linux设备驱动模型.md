@@ -932,7 +932,7 @@ struct class {
 
 
 
-## 6.1 platform device
+## 6.1 platform_device
 
 ```c
 struct platform_device {
@@ -962,7 +962,7 @@ struct platform_device {
 
 
 
-## 6.2 platform driver
+## 6.2 platform_driver
 
 ```c
 struct platform_driver {
