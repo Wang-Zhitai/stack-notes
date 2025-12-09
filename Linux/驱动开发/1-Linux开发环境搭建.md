@@ -1,6 +1,6 @@
 # Linux开发环境搭建
 
-# 一、Linux操作系统介绍
+# 1. Linux操作系统介绍
 
 Linux 是一种开源且免费的操作系统内核，是由芬兰计算机科学家 Linus Torvalds 于 1991  年开始编写，并在其后的几年中不断完善和发展而来。最初是作为个人电脑使用的，但现在已经成为了许多服务器、移动设备、超级计算机等各种类型的硬件设备上的主要操作系统。
 
@@ -12,11 +12,11 @@ Linux 是一种开源且免费的操作系统内核，是由芬兰计算机科�
 
 
 
-# 二、开发环境搭建
+# 2. 开发环境搭建
 
 > 现在主流的操作系统开发方法：编译系统需要在Ubuntu环境下进行编译，所以要先装一个具有编译环境的Ubuntu用来开发驱动
 
-## （一）安装Ubuntu
+## 2.1 安装Ubuntu
 
 > 现在主流的Linux环境有两个：
 >
@@ -25,7 +25,7 @@ Linux 是一种开源且免费的操作系统内核，是由芬兰计算机科�
 >
 > 当然，想用哪个自己选就行，都可以的。
 
-### 1.VMware+Ubuntu虚拟机
+### 2.1.1 VMware+Ubuntu虚拟机
 
 #### （1）下载VMWare Workstation Pro
 
@@ -66,7 +66,7 @@ Linux 是一种开源且免费的操作系统内核，是由芬兰计算机科�
 4. 将网络配置成桥接模式可以使虚拟机接入物理网络
 5. 新版VMware使用Ctrl+Alt+Enter可以快速切换全屏
 
-### 2.Windows+WSL2
+### 2.1.2 Windows+WSL2
 
 #### （1）安装WSL2
 
@@ -138,9 +138,9 @@ wsl --manage Ubuntu-20.04 --move D:\WSL\Ubuntu-20.04
 
 ![image-20251107094400360](./assets/image-20251107094400360.png)
 
-## （二） Ubuntu设置
+## 2.2 Ubuntu设置
 
-### 1、 启用root用户
+### （1）启用root用户
 
 1. 设置root用户密码
 
@@ -160,7 +160,7 @@ su root
 
 
 
-### 2、 修改系统时区
+### （2）修改系统时区
 
 1. 使用命令查看当前时区
 
@@ -176,7 +176,7 @@ sudo timedatectl set-timezone Asia/Shanghai
 
 
 
-### 3、 更换镜像源
+### （3）更换镜像源
 
 ***
 
@@ -200,12 +200,12 @@ sudo sed -i "s@http://.*security.ubuntu.com@http://mirrors.huaweicloud.com@g" /e
 3. 更新索引
 
 ```shell
-sudo apt-get update
+sudo apt update
 ```
 
 
 
-### 4、 安装VMware Tools
+### （4）安装VMware Tools
 
 1. 安装软件包
 
@@ -224,24 +224,24 @@ systemctl status open-vm-tools
 
 
 
-### 5、 安装vim
+### （5）安装vim
 
 Ubuntu系统执行以下代码：
 
 ```shell
-sudo apt-get install vim-gtk -y
+sudo apt install vim-gtk -y
 ```
 
 
 
-### 6、 安装Samba服务
+### （6）安装Samba服务
 
 1. Samba最大的用途就是可以实现Linux与windows系统共享文件夹，他可以将Linux的目录挂载成网络硬盘的形式出现在Windows的文件资源管理器里
 
 2. 搭建SMB服务首先要保证Windows和Ubuntu网络互通，然后在Ubuntu下载安装：
 
 ```shell
-sudo apt-get install samba -y
+sudo apt install samba -y
 ```
 
 3. 修改SMB配置文件：
@@ -287,12 +287,12 @@ sudo service smbd restart
 
 
 
-### 7、 安装依赖
+### （7）安装依赖
 
 安装一些用于编译Linux系统的工具软件包：
 
 ```shell
-sudo apt-get install git ssh make gcc libssl-dev \
+sudo apt install git ssh make gcc libssl-dev \
 liblz4-tool expect expect-dev g++ patchelf chrpath gawk texinfo chrpath \
 diffstat binfmt-support qemu-user-static live-build bison flex fakeroot \
 cmake gcc-multilib g++-multilib unzip device-tree-compiler ncurses-dev \
@@ -302,12 +302,12 @@ libmpc-dev bc python-is-python3 python2
 
 
 
-### 8、 安装SSH
+### （8）安装SSH
 
 1. 安装SSH服务
 
 ```shell
-sudo apt-get install openssh-server -y
+sudo apt install openssh-server -y
 ```
 
 2. 启动SSH服务
@@ -324,7 +324,7 @@ sudo systemctl restart sshd
 
 
 
-### 9、 安装NFS服务
+### （9）安装NFS服务
 
 >**功能：** 实现开发板（芯片）与Ubuntu互传文件
 >
@@ -333,7 +333,7 @@ sudo systemctl restart sshd
 1. Ubuntu安装NFS服务
 
 ```shell
-sudo apt-get install nfs-kernel-server
+sudo apt install nfs-kernel-server
 ```
 
 2. 修改配置文件
@@ -388,12 +388,12 @@ mount -t nfs -o nfsvers=3,nolock 192.168.31.148:/home/wzt /mnt/
 
 
 
-### 10、 安装FTP服务（可选）
+### （10）安装FTP服务（可选）
 
 1. 开启Ubuntu下的 FTP 服务 
 
 ```shell
-sudo apt-get install vsftpd
+sudo apt install vsftpd
 ```
 
 2. 安装完成以后使用vim命令打开/etc/vsftpd.conf
@@ -424,14 +424,14 @@ https://filezilla-project.org/
 
 
 
-### 11、 安装TFTP服务（可选）
+### （11）安装TFTP服务（可选）
 
 1. tftp 命令的作用和 nfs 命令一样，都是用于通过网络下载东西到 DRAM 中，只是 tftp 命令使用的 TFTP 协议，Ubuntu 主机作为 TFTP 服务器。因此需要在 Ubuntu 上搭建 TFTP 服务器， 
 2. 需要安装 tftp-hpa 和tftpd-hpa，命令如下：
 
 ```shell
-sudo apt-get install tftp-hpa tftpd-hpa 
-sudo apt-get install xinetd 
+sudo apt install tftp-hpa tftpd-hpa 
+sudo apt install xinetd 
 ```
 
 3. 和 NFS 一样，TFTP 也需要一个文件夹来存放文件，在用户目录下新建一个目录，命令如下： 
@@ -495,7 +495,7 @@ chmod 777 zImage
 
 
 
-### 12、 设置Ubuntu为中文（可选）
+### （12）设置Ubuntu为中文（可选）
 
 1. Ubuntu安装成功后，默认系统语言为英文，点击语言设置。
 2. 选择对应的区域和语言。点击 `Manage Installed Languages` 按钮上面那个 `+` ，然后选择 `Chinese`。
@@ -504,7 +504,32 @@ chmod 777 zImage
 5. 下载完成后，将下载的 `汉语（中国）` 拖到最上方。
 6. 重启Ubuntu系统，设置生效。 
 
-## （三） SDK源码安装和编译
+
+
+### （13）安装starship（可选）
+
+1. starship官网指南：[Starship](https://starship.rs/zh-CN/)
+2. 安装最新版本：
+
+```bash
+curl -sS https://starship.rs/install.sh | sh
+```
+
+3. 根据提示将初始化脚本添加到 **shell** 配置文件中，如果用的是 **bash** 终端就用在 `~/.bashrc` 的最后，添加以下内容：
+
+```bash
+# ~/.bashrc
+
+eval "$(starship init bash)"
+```
+
+4. 重启终端或者重新打开一个终端，会发现终端样式变得很美观：
+
+![image-20251207200301860](./assets/image-20251207200301860.png)
+
+
+
+## 2.3 SDK源码安装和编译
 
 > **注意事项：**
 >
@@ -538,7 +563,9 @@ tar -xvf atk-dlrk3506_linux6.1_release_v1.2.0_20250718.tar.gz
 ./build.sh
 ```
 
-## （四） SDK源码目录介绍
+
+
+## 2.4 SDK源码目录介绍
 
 > **瑞芯微提供的SDK目录如下：**
 >
@@ -557,7 +584,9 @@ tar -xvf atk-dlrk3506_linux6.1_release_v1.2.0_20250718.tar.gz
 > * `yocto：`基于 Yocto 开发的根文件系统。
 > * `build.sh：`是RK提供的一个编译脚本，使用该脚本可以方便用户快速构建出各种镜像文件以及对镜像进行打包操作，既可以一键全自动编译整个 SDK，也可以单独编译 U-Boot、 Linux Kernel、 buildroot 等，非常方便  
 
-## （五） SDK镜像文件目录介绍
+
+
+## 2.5 SDK镜像文件目录介绍
 
 **瑞芯微的SDK编译后生成的镜像文件夹rockdev的目录如下：**
 
@@ -576,7 +605,7 @@ tar -xvf atk-dlrk3506_linux6.1_release_v1.2.0_20250718.tar.gz
 
 
 
-# 三、镜像烧录与启动模式
+# 3. 镜像烧录与启动模式
 
 **瑞芯微的启动模式有四种，有两种是支持烧录的：**
 
@@ -601,12 +630,12 @@ tar -xvf atk-dlrk3506_linux6.1_release_v1.2.0_20250718.tar.gz
   * 在 U-Boot 下执行 download 或者在 Linux下通过串口或者ADB执行 reboot loader 也能进入
   * 连接到 RKDevTool 工具后会显示“发现一个 ADB 设备”，然后点击“切换”按钮，也能进入 Loader 模式
 
-5. 然后可以选**下载镜像**能够单独烧录各个镜像，也能选**升级固件**一次性烧录整个update.img
+5. 然后可以选**下载镜像**能够单独烧录各个镜像，也能选**升级固件**一次性烧录整个 update.img
 6. 不推荐用 Ubuntu 对 RK 开发板进行烧录，不好用
 
 
 
-# 四、配置交叉编译环境
+# 4. 配置交叉编译环境
 
 1. Linux内核源码是需要指定架构和交叉编译器才能进行编译的
 
@@ -624,18 +653,9 @@ export CROSS_COMPILE=/home/wzt/riscv64-wangzai-linux-gnu-gcc/bin/riscv64-unknown
 #这里的路径指的是自己安装的交叉编译工具链的路径，因人而异
 ```
 
-```shell
-network={
-	ssid="deyintech"
-	psk="zhimakaimen"
-	key_mgmt=WPA-PSK
-	priority=10
-}
-```
 
 
-
-# 五、配置VSCode为Linux代码规范
+# 5. 配置VSCode为Linux代码规范
 
 ***
 
@@ -648,7 +668,7 @@ network={
 [llvm/llvm-project: The LLVM Project is a collection of modular and reusable compiler and toolchain technologies.](https://github.com/llvm/llvm-project)
 
 2. 在VSCode中安装Clang-Format插件
-3. 在VSCode的设置中搜索format,将格式化程序改为clang-format
+3. 在VSCode的设置中搜索format,将默认格式化程序改为clang-format，然后打开在保存时候格式化
 
 ![image-20251112180032939](./assets/image-20251112180032939.png)
 
