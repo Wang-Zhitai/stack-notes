@@ -515,6 +515,7 @@ chmod 777 zImage
 curl -sS https://starship.rs/install.sh | sh
 ```
 
+3. 如果因为网络问题安装失败，挂个代理即可，注意虚拟机需要切换到 NAT 模式，才能共享主机的局域网代理
 3. 根据提示将初始化脚本添加到 **shell** 配置文件中，如果用的是 **bash** 终端就用在 `~/.bashrc` 的最后，添加以下内容：
 
 ```bash
@@ -523,7 +524,7 @@ curl -sS https://starship.rs/install.sh | sh
 eval "$(starship init bash)"
 ```
 
-4. 重启终端或者重新打开一个终端，会发现终端样式变得很美观：
+5. 重启终端或者重新打开一个终端，会发现终端样式变得很美观：
 
 ![image-20251207200301860](./assets/image-20251207200301860.png)
 
