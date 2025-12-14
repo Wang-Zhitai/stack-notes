@@ -6,7 +6,8 @@
 
 - **核心问题**：**哪个任务**来跑？在**哪个CPU核**上跑？
 - **职能**：正如上一部分所述，在多个就绪任务之间分配CPU时间，选择下一个要执行的任务，并负责上下文切换、负载均衡等。
-- **类比**：**足球教练**。决定哪个球员（任务）上场，踢哪个位置（在哪个CPU核上执行），并根据比赛情况换人。
+
+
 
 ## 1.2 调频
 
@@ -19,7 +20,8 @@
 		- **省电模式**：负载低时，降至最低频率，牺牲一些性能以大幅节省功耗（功耗与频率大致成线性关系，与电压的平方成关系）。
 		- **按需调节**：最常见的策略，内核监视CPU使用率，动态调整频率以满足性能需求的同时尽量省电。
 - **为什么重要**：CPU在高频下运行虽然性能强，但功耗（尤其是动态功耗）会显著增加，发热也更大。调频是平衡性能与能效的关键手段。
-- **类比**：**汽车油门**。路况好、需要加速时深踩油门（提高频率）；匀速巡航时轻踩油门（降低频率）。
+
+
 
 ## 1.3 摆核
 
@@ -32,7 +34,8 @@
 		- 当系统负载很低时，**将任务集中到少数几个核心上运行，然后关闭完全空闲的核心**。关闭的核心几乎不消耗功耗。
 		- 当负载升高时，**再按需开启更多核心**来分担负载。
 - **为什么重要**：即使频率降到最低，一个开启的CPU核也会消耗**静态功耗**（ leakage power）。直接关闭整个核心可以彻底消除这部分功耗，是更深层次的省电手段，但对任务唤醒的延迟影响更大。
-- **类比**：**工厂生产线**。订单少时，只开一条生产线，让工人集中作业，关掉其他生产线以节省水电。订单暴增时，再陆续开启其他生产线。
+
+
 
 ## 1.4 三者协同工作示例
 
@@ -43,9 +46,11 @@
 5. **触发调度**：该应用启动，产生多个高优先级线程。
 6. **调频响应**：CPUFreq检测到**CPU0**利用率瞬间飙升到100%，立即将其频率拉升至最高2.0GHz以保证响应速度。
 7. **负载均衡与摆核响应**：调度器发现**CPU0**已经满载，且新任务队列很长。
-	- 首先，通过**负载均衡**将部分任务迁移到**CPU1**上（此时**CPU1**还处于关闭状态）。
-	- 这个迁移请求触发**摆核**逻辑，**唤醒（开启）CPU1**。
+  - 首先，通过**负载均衡**将部分任务迁移到**CPU1**上（此时**CPU1**还处于关闭状态）。
+  - 这个迁移请求触发**摆核**逻辑，**唤醒（开启）CPU1**。
 8. **新的稳定状态**：调度器在**CPU0**和**CPU1**之间平衡任务负载；CPUFreq根据两个核心各自的利用率，独立地调节它们的频率；**CPU2**和**CPU3**仍处于关闭状态以省电。
+
+
 
 ## 1.5 总结
 
@@ -63,7 +68,216 @@
 
 
 
-# 2. 任务状态图
+# 2. 线程状态图
 
 ![image-20251211204508576](./assets/image-20251211204508576.png)
 
+*绿色的三个状态是调度器可以调度到的，而阻塞（BLOCK）状态下是主动让出 CPU ，调度器无法调度到*
+
+| State                  | 描述                                                         | 简写             |
+| ---------------------- | ------------------------------------------------------------ | ---------------- |
+| `TASK_RUNNING`         | 在 `runqueue` 中排队`（Runnable）`或者在 `CPU` 上面运行      | R                |
+| `TASK_INTERRUPTIBLE`   | 进程因为等待一些条件而被挂起或阻塞所处的状态，但能够被中断或信号唤醒。 | S                |
+| `TASK_UNINTERRUPTIBLE` | 只有它所等待的资源可用的时候，它才会被唤醒，不能够被中断或信号唤醒。 | D                |
+| `TASK_STOPPED`         | 进程被停止，当进程接收到 `SIGSTOP、SIGTTIN、SIGTSTP 或者SIGTTOU`信号之后就会进入该状态，除非进程本身就属于 TASK_UNINTERRUPTIBLE 状态而不响应信号。 | T                |
+| `TASK_TRACED`          | 进程被debugger等进程监视跟踪时。                             | t                |
+| TASK_PAKED             | 这个状态主要是由 `kthread_park()` 和 `kthread_unpark()` 函数使用。主要为了解决 `CPU hotplug` 问题。 | P                |
+| TASK_DEAD              | 收到 `single` 或者调用 `exit` 进程退出，分别为 `EXIT_ZOMBIE 或 EXIT_DEAD`。 | ZOMBIE:Z  DEAD:X |
+| TASK_WAKEKILL          | `TASK_UNINTERRUPTIBLE + TASK_WAKEKILL 等于TASK_KILLABLE`，而 `TASK_WAKEKILL` 用于在接收致命信号时唤醒进程。 | K                |
+| TASK_WAKING            | 正在被唤醒，是个短暂的状态。一旦放入 `runqueue` 中这个状态就结束转换为 `TASK_RUNNING` 状态。 | W                |
+| TASK_NEW               | `fork` 时的状态，`TASK_NEW` 之后放到 `CPU` 的 `runqueue` 变成 `TASK_RUNNING`。 |                  |
+| TASK_KILLABLE          | 可以被等到的资源唤醒，不能被常规信号唤醒，但是可以被致命信号唤醒。 `TASK_WAKEKILL 或 TASK_UNINTERRUPTIBLE`。 |                  |
+
+
+
+# 3. 调度类和调度策略
+
+[吐血整理 | 肝翻 Linux 进程调度所有知识点](https://mp.weixin.qq.com/s/-j7gPKUk1dkvzbP0ERdKVg)
+
+![image-20251214230609786](./assets/image-20251214230609786.png)
+
+
+
+**优先级（数字越小优先级越高）：**
+
+[Linux调度器：进程优先级](http://www.wowotech.net/process_management/process-priority.html)
+
+[一文搞懂linux进程调度框架 - 知乎](https://zhuanlan.zhihu.com/p/554149581)
+
+![image-20251214231009976](./assets/image-20251214231009976.jpg)
+
+
+
+**用户空间看到的优先级和内核空间看到的不一样：**
+
+![image-20251214231548272](./assets/image-20251214231548272.png)
+
+
+
+**虽然有五种调度，但是 stop 和 idle 调度没有队列，他们只有一个TASK。`每个CPU都有一个运行队列 runqueue，每个 runqueue 有三个调度队列，task 作为调度实体加入到各自的调度队列中`**
+
+![image-20251214231739007](./assets/image-20251214231739007.png)
+
+
+
+**在`调度器被触发调度时，由调度实体（task / task group）所属的调度器类`，按照预定的`调度器策略`调度 task 执行**
+
+![image-20251214232627364](./assets/image-20251214232627364.png)
+
+**调度器：实现task切换与排序的系统，主要有主调度器与周期性调度器**
+
+| 调度器         | 描述                                                         |
+| -------------- | ------------------------------------------------------------ |
+| `主调度器`     | 直接的，比如进程打算睡眠或者等待信号主动放弃CPU              |
+| `周期性调度器` | 系统预先设定的 timer tick，每隔一定周期 trigger，由调度器类决定是否更换新的 task 执行 |
+
+**调度器类：**
+
+| 调度器类           | 说明                                                         | 优先级 | 采用的调度策略                                     |
+| ------------------ | ------------------------------------------------------------ | ------ | -------------------------------------------------- |
+| `stop_sched_class` | **优先级最高**的线程，会中断其他所有的线程，且不会被其他任务打断：`1. 发生在 cpu_stop cpu_callback 进行 CPU 之间的任务 migration 2. HOTPLUG_CPU 的情况下关闭任务。` | 1      | 一个CPU，同一时刻只接受一个这样的任务，没有queue。 |
+| `dl_sched_class`   | 按照 task 设定的 deadline 进行调度。（移动设备一般不使用，如安卓） | 2      | SCHED_DEADLINE                                     |
+| `rt_sched_class`   | `实时调度器（常用）`                                         | 3      | SCHED_RR / SCHED_FIFO                              |
+| `fair_sched_class` | `完全公平调度器（最常用，大多数task都属于这个，有时间片的概念）` | 4      | SCHED_NORMAL / SCHED_BATCH / SCHED_IDLE            |
+| `idle_sched_class` | 系统进入空闲时候的调度器（很少用）                           | 5      | 刚开机的时候创建的 idle task，每个CPU上面有一个    |
+
+**调度策略：设定给task供调度器类参考的调度原则或者方法**
+
+| 调度策略         | 说明                                                         | 适用的调度类 |
+| ---------------- | ------------------------------------------------------------ | ------------ |
+| `SCHED_NORMAL`   | 完全公平调度                                                 | CFS          |
+| `SCHED_FIFO`     | 当都是`RT线程且优先级相同时`，`enqueue`早的先执行且一直执行到主动或者被动放弃CPU。 | RT           |
+| `SCHED_RR`       | 具有相同优先级的`RT TASK`，每个`TASK`执行分配给自己的时间片。 | RT           |
+| `SCHED_BATCH`    | 是用`CPU`密集型`task`。完全公平调度的一种，只不过是尽可能的条件下多分配`CPU`执行。 | CFS          |
+| `SCHED_IDLE`     | 比 `nice 19` 的任务优先级还要低，但它并非真正的空闲任务。    | CFS          |
+| `SCHED_DEADLINE` | `deadline`调度器默认使用的调度策略。`EDF:early deadline task first` | DL           |
+
+**调度实体：被调度的基本单位，可以是一个task，或者一组task。**
+
+**API：**`手动设置进程的调度策略和参数 sched_setscheduler(),如果不设置的话默认是 SCHED_OTHER（完全公平调度CFS），默认的调度参数一般为0（实际上由nice值决定）`
+
+```c
+/**
+ * sched_setscheduler - 设置进程的调度策略和参数
+ * 
+ * @pid: 目标进程的进程ID，用于标识要设置哪个进程的调度策略
+ *       特殊值0表示当前调用进程自身
+ *       pid > 0 表示设置指定PID的进程
+ *       
+ * @policy: 要设置的调度策略，决定进程如何被调度器处理
+ *         可用的策略包括（定义在<sched.h>中）：
+ *         - SCHED_OTHER: 默认的完全公平调度(CFS)，用于普通分时任务
+ *         - SCHED_FIFO:  先进先出实时调度，无时间片限制
+ *         - SCHED_RR:    轮转实时调度，有时间片限制
+ *         - SCHED_BATCH: 批处理调度，适合非交互式后台任务
+ *         - SCHED_IDLE:  极低优先级调度，仅当系统空闲时运行
+ *         - SCHED_DEADLINE: 截止时间调度，用于有严格时间要求的任务
+ *         
+ * @param: 指向sched_param结构体的指针，包含调度参数
+ *         struct sched_param {
+ *             int sched_priority;  // 调度优先级
+ *             // 注意：如果是SCHED_DEADLINE，这个结构体成员更多
+ *         };
+ *         对于不同策略，sched_priority的含义不同：
+ *         - SCHED_FIFO/SCHED_RR: 实时优先级(1-99，1最低，99最高)
+ *         - SCHED_OTHER/SCHED_BATCH/SCHED_IDLE: 必须设置为0
+ *         - SCHED_DEADLINE: 不使用此字段，有专门的参数
+ *         
+ * 返回值:
+ *   成功: 返回0
+ *   失败: 返回-1，并设置errno为相应的错误码
+ *         常见错误:
+ *         - EINVAL: 参数无效（如policy不支持，priority超出范围）
+ *         - EPERM:  权限不足（普通用户尝试设置实时调度）
+ *         - ESRCH:  指定的pid不存在
+ *         - EACCES: 调用者没有适当的权限
+ *         
+ * 注意事项:
+ *   1. 设置实时调度策略(SCHED_FIFO/SCHED_RR)通常需要root权限
+ *   2. 不当使用实时调度可能导致系统无响应
+ *   3. 对于SCHED_DEADLINE，需要使用sched_setattr()函数
+ *   4. 子进程会继承父进程的调度策略（除非设置了sched_reset_on_fork标志）
+ *   5. 优先级数值范围：实时(1-99)，普通(100-139对应nice值-20到19)
+ */
+int sched_setscheduler(pid_t pid, int policy, const struct sched_param *param);
+```
+
+
+
+# 4. CFS和EEVDF
+
+## 4.1 CFS
+
+### 4.1.1 虚拟运行时间
+
+### 4.1.2 时间片
+
+### 4.1.3 选择下一个进程
+
+### 4.1.4 进程上下文切换
+
+## 4.2 调度时刻
+
+## 4.3 执行调度
+
+## 4.4 linux主调度器
+
+## 4.5 EEVDF
+
+`CFS调度器强度公平，只提供一个权重一个变量（nice值）`，用于控制任务之间运行时间分配的比例，不提供对特定任务时延层面的保障。这导致`服务质量保障（Qualitity of Service,Qos）`很难实现。传统手段是通过为不同任务设置标签，在调度关键逻辑（唤醒、抢占、负载均衡），对打了不同标签的任务进行特判处理，导致调度逻辑充满了特判和兜底。
+
+为了将时延考虑在内，新的调度器`EEVDF在保证时间分配公平的同时`，引入代表任务`”应得时间“和”已得时间“的差异值 lag `作为关键指标，只有 `应得时间 > 已得时间 任务才有资格（称为eligible）`被挑选，进一步地，在有资格被挑选的任务中，选择`任务完成时限（deadline）`最近的任务运行，即`所谓的Earliest Eligible Vitual Deadline First 称为 EEVDF` 。
+
+
+
+# 5. 通过trace查看task状态
+
+# 6. 调度常见问题
+
+# 7. RT throttle
+
+`RT调度器类有两个调度策略（FIFO和RR）`。他们的 `task` 可能会长期占用 `CPU` ，导致其他的 `CFS task` 无法执行。为了避免这种情况，`Linux是运用 RT throttle（实时节流） 机制解决的`，限制实时任务在给定周期内的最大运行时间，为非实时任务保留一定的CPU时间。。
+
+```bash
+# 查看当前RT节流设置
+cat /proc/sys/kernel/sched_rt_period_us     # 周期长度（微秒）
+cat /proc/sys/kernel/sched_rt_runtime_us    # 允许运行时间（微秒）
+
+# 默认值：
+# sched_rt_period_us = 1,000,000  (1秒)
+# sched_rt_runtime_us = 950,000   (0.95秒)
+
+# 允许运行时间比例 = sched_rt_runtime_us / sched_rt_period_us
+# 默认：950,000 / 1,000,000 = 0.95 = 95%
+# 所以默认配置下：
+# 每秒内实时任务最多运行 0.95 秒（950毫秒）
+# 必须保留至少 0.05 秒（50毫秒）给非实时任务
+```
+
+如果想知道是哪个 `RT task` 一直在运行，可以打开 `CONFIG_RT_GROUP_SCHED 和 CONFIG_XXX_RT_THROTTLE_MON` 宏定义，然后抓 `log` 和 `trace` 可以看到 `kernel log` 打印: `RT throrrling actived`，并打印出是哪个 `task` 在哪个 `CPU` 执行多少毫秒，然后找对应的 `owner` 确认。
+
+
+
+# 8. 负载均衡
+
+# 9. 参考文献
+
+[【原创】（一）Linux进程调度器-基础 - LoyenWang - 博客园](https://www.cnblogs.com/LoyenWang/p/12249106.html)
+
+[【原创】（二）Linux进程调度器-CPU负载 - LoyenWang - 博客园](https://www.cnblogs.com/LoyenWang/p/12316660.html)
+
+[【原创】（三）Linux进程调度器-进程切换 - LoyenWang - 博客园](https://www.cnblogs.com/LoyenWang/p/12386281.html)
+
+[【原创】（四）Linux进程调度-组调度及带宽控制 - LoyenWang - 博客园](https://www.cnblogs.com/LoyenWang/p/12459000.html)
+
+[【原创】（五）Linux进程调度-CFS调度器 - LoyenWang - 博客园](https://www.cnblogs.com/LoyenWang/p/12495319.html)
+
+[【原创】（六）Linux进程调度-实时调度器 - LoyenWang - 博客园](https://www.cnblogs.com/LoyenWang/p/12584345.html)
+
+[吐血整理 | 肝翻 Linux 进程调度所有知识点](https://mp.weixin.qq.com/s/-j7gPKUk1dkvzbP0ERdKVg)
+
+[Linux调度器：进程优先级](http://www.wowotech.net/process_management/process-priority.html)
+
+[一文搞懂linux进程调度框架 - 知乎](https://zhuanlan.zhihu.com/p/554149581)
+
+[CFS调度时间片计算_cfs 调度周期-CSDN博客](https://blog.csdn.net/qq_23662505/article/details/127566718)
