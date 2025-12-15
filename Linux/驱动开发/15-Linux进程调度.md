@@ -208,6 +208,8 @@ int sched_setscheduler(pid_t pid, int policy, const struct sched_param *param);
 
 ## 4.1 CFS
 
+[吐血整理 | 肝翻 Linux 进程调度所有知识点](https://mp.weixin.qq.com/s/-j7gPKUk1dkvzbP0ERdKVg)
+
 CFS是 Completely Fair Scheduler 简称，即完全公平调度器。CFS 调度器和以往的调度器不同之处在于没有固定时间片的概念，而是公平分配 CPU 使用的时间。比如：2个优先级相同的任务在一个 CPU 上运行，那么每个任务都将会分配一半的 CPU 运行时间，这就是要实现的公平。
 
 但现实中，必然是有的任务优先级高，有的任务优先级低。CFS 调度器引入权重 weight 的概念，用 weight 代表任务的优先级，各个任务按照 weight 的比例分配 CPU 的时间。比如：2个任务A和B，A的权重是1024，B的权重是2048，则A占 1024/(1024+2048) = 33.3% 的 CPU 时间，B占 2048/(1024+2048)=66.7% 的 CPU 时间。
@@ -228,22 +230,142 @@ const int sched_prio_to_weight[40] = {
  /*   5 */       335,       272,       215,       172,       137,
  /*  10 */       110,        87,        70,        56,        45,
  /*  15 */        36,        29,        23,        18,        15,
-}; 
+};
 ```
 
 数组值计算公式是：weight = 1024 / 1.25nice
 
+
+
 ### 4.1.1 虚拟运行时间
+
+根据上面进程实际运行时间的公式，可以看出，权重不同的2个进程的实际执行时间是不相等的，但是 CFS 想保证每个进程运行时间相等，因此 CFS 引入了虚拟运行时间的概念。虚拟时间(vriture_runtime)和实际时间(wall_time)转换公式如下：
+
+**vriture_runtime = (wall_time \* NICE0_TO_weight) / weight**
+
+其中，NICE0_TO_weight 代表的是 nice 值等于0对应的权重，即1024，weight 是该任务对应的权重。
+
+权重越大的进程获得的虚拟运行时间越小，那么它将被调度器所调度的机会就越大，所以，**CFS 每次调度原则是：总是选择 vriture_runtime 最小的任务来调度**。
+
+为了能够快速找到虚拟运行时间最小的进程，Linux 内核使用红黑树来保存可运行的进程。CFS跟踪调度实体sched_entity的虚拟运行时间vruntime，将sched_entity通过enqueue_entity()和dequeue_entity()来进行红黑树的出队入队，vruntime少的调度实体sched_entity排列到红黑树的左边。
+
+![image-20251215211458462](./assets/image-20251215211458462.png)
+
+如上图所示，红黑树的左节点比父节点小，而右节点比父节点大。所以查找最小节点时，只需要获取红黑树的最左节点即可。
+
+**相关步骤如下：**
+
+1. 每个sched_latency周期内，根据各个任务的权重值，可以计算出运行时间runtime；
+2. 运行时间runtime可以转换成虚拟运行时间vruntime；
+3. 根据虚拟运行时间的大小，插入到CFS红黑树中，虚拟运行时间少的调度实体放置到左边；
+
+![image-20251215211541536](./assets/image-20251215211541536.png)
+
+4. 在**下一次任务调度**的时候，选择虚拟运行时间少的调度实体来运行。pick_next_task 函数就是从就绪队列中选择最适合运行的调度实体，即虚拟时间最小的调度实体
+
+	
 
 ### 4.1.2 时间片
 
+[CFS调度时间片计算_cfs 调度周期-CSDN博客](https://blog.csdn.net/qq_23662505/article/details/127566718)
+
+```c
+/*
+ * Targeted preemption latency for CPU-bound tasks:
+ *
+ * NOTE: this latency value is not the same as the concept of
+ * 'timeslice length' - timeslices in CFS are of variable length
+ * and have no persistent notion like in traditional, time-slice
+ * based scheduling concepts.
+ *
+ * (to see the precise effective timeslice length of your workload,
+ *  run vmstat and monitor the context-switches (cs) field)
+ *
+ * (default: 6ms * (1 + ilog(ncpus)), units: nanoseconds)
+ */
+unsigned int sysctl_sched_latency            = 6000000ULL;
+static unsigned int normalized_sysctl_sched_latency    = 6000000ULL;
+
+/*
+ * Minimal preemption granularity for CPU-bound tasks:
+ *
+ * (default: 0.75 msec * (1 + ilog(ncpus)), units: nanoseconds)
+ */
+unsigned int sysctl_sched_min_granularity            = 750000ULL;
+static unsigned int normalized_sysctl_sched_min_granularity    = 750000ULL;
+
+/*
+ * This value is kept at sysctl_sched_latency/sysctl_sched_min_granularity
+ */
+static unsigned int sched_nr_latency = 8;
+
+```
+
+kernel/sched/fair.c中定义了这三个值得默认值：
+
+| 参数                                    | 默认值 |
+| --------------------------------------- | ------ |
+| sched_nr_latency                        | 8      |
+| sched_latency（默认调度周期）           | 6ms    |
+| sched_min_latency（最小调度时间片粒度） | 0.75ms |
+
+其中，sched_nr_latency的初始值是8，是由另外两个参数计算得出：
+
+**sched_nr_latency = sched_latency / sched_min_granularity**
+
+sched_latency 和 sched_min_granularity 被导出到/proc接口，随系统的CPU配置变化而变化：
+```bash
+rk3566_lubancat_1_mipi1080p:/ # cat /proc/sys/kernel/sched_latency_ns
+10000000 #默认调度周期10ms
+rk3566_lubancat_1_mipi1080p:/ # cat /proc/sys/kernel/sched_min_granularity_ns
+2250000 #最小调度时间片粒度2.25ms
+```
+
+**调度周期内，所有的task必须跑一遍**
+
+**调度周期 = min(默认调度周期, nr_running * 最小调度粒度)**
+
+
+
 ### 4.1.3 选择下一个进程
+
+![image-20251215215827699](./assets/image-20251215215827699.png)
+
+
 
 ### 4.1.4 进程上下文切换
 
+![image-20251215215659881](./assets/image-20251215215659881.png)
+
+
+
 ## 4.2 调度时刻
 
+1. **scheduler_tick 时钟中断**
+
+![image-20251215215955558](./assets/image-20251215215955558.png)
+
+2. **wake_up_process 唤醒进程的时候**
+
+![image-20251215220021176](./assets/image-20251215220021176.png)
+
+3. **do_fork 创建新进程的时候**
+
+![image-20251215220051411](./assets/image-20251215220051411.png)
+
+4. **set_user_nice 修改进程nice值的时候**
+
+![image-20251215220131322](./assets/image-20251215220131322.png)
+
+5. **smp_send_reschedule 负载均衡的时候**
+
+
+
 ## 4.3 执行调度
+
+![image-20251215214318700](./assets/image-20251215214318700.png)
+
+
 
 ## 4.4 linux主调度器
 
@@ -288,31 +410,31 @@ rem clear ftrace events
 adb shell "echo > /sys/kernel/debug/tracing/set_event"
 
 rem enable profiling events here,with loop
-for %%x in(
-		sched_switch
-		sched_wakeup
-		sched_migrate_task
-		sooftirq_raise
-		softirq_entry
-		softirq_exit
-		ipi
-		irq
-		irq_handler_entry
-		irq_handler_exit
-		cpu_frequency
-		workqueue_execute_start
-		workqueue_excute_end
-		timer
-		clk
-		suspend_resume
-		device_pm_callback_start
-		device_pm_callback_end
-		cpu_idle
-		pm_qos_update_request
-		i2c
-		f2fs
-)do(
-		adb shell "echo %%x >> /sys/kernel/debug/tracing/set_event"
+for %%x in (
+    sched_switch
+    sched_wakeup
+    sched_migrate_task
+    softirq_raise
+    softirq_entry
+    softirq_exit
+    ipi
+    irq
+    irq_handler_entry
+    irq_handler_exit
+    cpu_frequency
+    workqueue_execute_start
+    workqueue_execute_end
+    timer
+    clk
+    suspend_resume
+    device_pm_callback_start
+    device_pm_callback_end
+    cpu_idle
+    pm_qos_update_request
+    i2c
+    f2fs
+) do (
+    adb shell "echo %%x >> /sys/kernel/debug/tracing/set_event"
 )
 
 rem just in case tracing_enable is disabled by user or other debugging tool
@@ -322,12 +444,12 @@ adb shell "echo 0 > /sys/kernel/debug/tracing/tracing_on"
 rem erase previous recorded trace
 adb shell "echo > /sys/kernel/debug/tracing/trace"
 echo press any key to start capturing...
-pause
+pause >nul
 
 adb shell "echo 1 > /sys/kernel/debug/tracing/tracing_on"
 echo "Start recording ftrace data"
 echo "press any key to stop..."
-pause
+pause >nul
 
 adb wait-for-device
 adb shell "echo 0 > /sys/kernel/debug/tracing/tracing_on"
@@ -340,6 +462,7 @@ adb shell "echo noprint-tgid > /sys/kernel/debug/tracing/trace_options" >nul 2>&
 
 rem default size
 adb shell "echo 4096 > /sys/kernel/debug/tracing/buffer_size_kb"
+echo "Done!"
 pause
 ```
 
