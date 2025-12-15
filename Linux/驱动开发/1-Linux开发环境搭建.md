@@ -772,3 +772,9 @@ UseTab:          Always
 ```
 
 5. 将缩进方式改为制表符，一个制表符占8个字符
+
+
+
+# 6. ADB工具
+
+**ADB工具下载：[Android 调试桥 (adb)  | Android Studio  | Android Developers](https://developer.android.google.cn/tools/adb?hl=zh-cn)**

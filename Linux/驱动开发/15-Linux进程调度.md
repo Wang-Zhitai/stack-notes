@@ -208,6 +208,31 @@ int sched_setscheduler(pid_t pid, int policy, const struct sched_param *param);
 
 ## 4.1 CFS
 
+CFS是 Completely Fair Scheduler 简称，即完全公平调度器。CFS 调度器和以往的调度器不同之处在于没有固定时间片的概念，而是公平分配 CPU 使用的时间。比如：2个优先级相同的任务在一个 CPU 上运行，那么每个任务都将会分配一半的 CPU 运行时间，这就是要实现的公平。
+
+但现实中，必然是有的任务优先级高，有的任务优先级低。CFS 调度器引入权重 weight 的概念，用 weight 代表任务的优先级，各个任务按照 weight 的比例分配 CPU 的时间。比如：2个任务A和B，A的权重是1024，B的权重是2048，则A占 1024/(1024+2048) = 33.3% 的 CPU 时间，B占 2048/(1024+2048)=66.7% 的 CPU 时间。
+
+在引入权重之后，分配给进程的时间计算公式如下：
+
+**实际运行时间 = 调度周期 \* 进程权重 / 所有进程权重之和**
+
+CFS 调度器用nice值表示优先级，取值范围是[-20, 19]，nice和权重是一一对应的关系。数值越小代表优先级越大，同时也意味着权重值越大，nice值和权重之间的转换关系：
+
+```c
+const int sched_prio_to_weight[40] = {
+ /* -20 */     88761,     71755,     56483,     46273,     36291,
+ /* -15 */     29154,     23254,     18705,     14949,     11916,
+ /* -10 */      9548,      7620,      6100,      4904,      3906,
+ /*  -5 */      3121,      2501,      1991,      1586,      1277,
+ /*   0 */      1024,       820,       655,       526,       423,
+ /*   5 */       335,       272,       215,       172,       137,
+ /*  10 */       110,        87,        70,        56,        45,
+ /*  15 */        36,        29,        23,        18,        15,
+}; 
+```
+
+数组值计算公式是：weight = 1024 / 1.25nice
+
 ### 4.1.1 虚拟运行时间
 
 ### 4.1.2 时间片
@@ -222,6 +247,15 @@ int sched_setscheduler(pid_t pid, int policy, const struct sched_param *param);
 
 ## 4.4 linux主调度器
 
+| 调度器      | 内核版本         |
+| ----------- | ---------------- |
+| O(n) 调度器 | linux 0.11 - 2.4 |
+| O(1) 调度器 | linux 2.6        |
+| CFS 调度器  | linux 2.6 - 6.6  |
+| EEVDF 度器  | linux 6.6 - 至今 |
+
+
+
 ## 4.5 EEVDF
 
 `CFS调度器强度公平，只提供一个权重一个变量（nice值）`，用于控制任务之间运行时间分配的比例，不提供对特定任务时延层面的保障。这导致`服务质量保障（Qualitity of Service,Qos）`很难实现。传统手段是通过为不同任务设置标签，在调度关键逻辑（唤醒、抢占、负载均衡），对打了不同标签的任务进行特判处理，导致调度逻辑充满了特判和兜底。
@@ -230,11 +264,88 @@ int sched_setscheduler(pid_t pid, int policy, const struct sched_param *param);
 
 
 
-# 5. 通过trace查看task状态
+# 5. 通过trace查看TASK状态
 
-# 6. 调度常见问题
+**ADB工具下载：[Android 调试桥 (adb)  | Android Studio  | Android Developers](https://developer.android.google.cn/tools/adb?hl=zh-cn)**
 
-# 7. RT throttle
+**分析trace的网址：[Perfetto UI](https://ui.perfetto.dev/)**
+
+```bat
+@echo off
+
+rem in /sys/kernel/debug/tracing/ or /sys/kernel/tracing/,please confirm by yourself
+
+adb root
+
+adb shell "echo 65536 > /sys/kernel/debug/tracing/buffer_size_kb"
+echo "buffer_size_kb(per cpu): "
+adb shell "cat /sys/kernel/debug/tracing/buffer_size_kb"
+
+adb shell "echo nop > /sys/kernel/debug/tracing/current_tracer" >nul 2>&1
+adb shell "echo 'noprint-tgid' > /sys/kernel/tracing/trace_options" >nul 2>&1
+
+rem clear ftrace events
+adb shell "echo > /sys/kernel/debug/tracing/set_event"
+
+rem enable profiling events here,with loop
+for %%x in(
+		sched_switch
+		sched_wakeup
+		sched_migrate_task
+		sooftirq_raise
+		softirq_entry
+		softirq_exit
+		ipi
+		irq
+		irq_handler_entry
+		irq_handler_exit
+		cpu_frequency
+		workqueue_execute_start
+		workqueue_excute_end
+		timer
+		clk
+		suspend_resume
+		device_pm_callback_start
+		device_pm_callback_end
+		cpu_idle
+		pm_qos_update_request
+		i2c
+		f2fs
+)do(
+		adb shell "echo %%x >> /sys/kernel/debug/tracing/set_event"
+)
+
+rem just in case tracing_enable is disabled by user or other debugging tool
+adb shell "echo 1 > /sys/kernel/debug/tracing/tracing_enabled" >nul 2>&1
+adb shell "echo 0 > /sys/kernel/debug/tracing/tracing_on"
+
+rem erase previous recorded trace
+adb shell "echo > /sys/kernel/debug/tracing/trace"
+echo press any key to start capturing...
+pause
+
+adb shell "echo 1 > /sys/kernel/debug/tracing/tracing_on"
+echo "Start recording ftrace data"
+echo "press any key to stop..."
+pause
+
+adb wait-for-device
+adb shell "echo 0 > /sys/kernel/debug/tracing/tracing_on"
+echo "Recording stopped..."
+
+adb shell "ps -AT" > ps_1.txt
+adb shell cat /sys/kernel/debug/tracing/trace > SYS_FTRACE
+adb shell "ps -AT" > ps_2.txt
+adb shell "echo noprint-tgid > /sys/kernel/debug/tracing/trace_options" >nul 2>&1
+
+rem default size
+adb shell "echo 4096 > /sys/kernel/debug/tracing/buffer_size_kb"
+pause
+```
+
+
+
+# 6. RT throttle（实时节流）
 
 `RT调度器类有两个调度策略（FIFO和RR）`。他们的 `task` 可能会长期占用 `CPU` ，导致其他的 `CFS task` 无法执行。为了避免这种情况，`Linux是运用 RT throttle（实时节流） 机制解决的`，限制实时任务在给定周期内的最大运行时间，为非实时任务保留一定的CPU时间。。
 
@@ -258,9 +369,29 @@ cat /proc/sys/kernel/sched_rt_runtime_us    # 允许运行时间（微秒）
 
 
 
-# 8. 负载均衡
+# 7. CFS负载均衡
 
-# 9. 参考文献
+[CFS任务的负载均衡（概述）](http://www.wowotech.net/process_management/load_balance.html)
+
+**CFS负载均衡主要有三种：**
+
+1. 时钟中断（tick）中定期触发，在tick中触发load balance。我们称之tick load balance或者periodic load balance。具体的代码执行路径是：
+
+![image-20251215113400459](./assets/image-20251215113400459.png)
+
+2. CPU即将进入空闲状态（执行idle线程）时触发，调度器在pick next的时候，当前cfs runque中没有runnable，只能执行idle线程，让CPU进入idle状态。我们称之new idle load balance。具体的代码执行路径是：
+
+![image-20251215113411965](./assets/image-20251215113411965.png)
+
+3. 某个CPU进入NO_HZ模式（停止tick）后，由繁忙CPU触发，其他的cpu已经进入idle，本CPU任务太重，需要通过ipi将其idle的cpu唤醒来进行负载均衡。我们称之nohz idle load banlance，具体的代码执行路径是：
+
+![image-20251215113519298](./assets/image-20251215113519298.png)
+
+如果没有dynamic tick特性，那么其实不需要进行nohz idle load balance，因为tick会唤醒处于idle的cpu，从而周期性tick就可以覆盖这个场景。
+
+
+
+# 8. 参考文献
 
 [【原创】（一）Linux进程调度器-基础 - LoyenWang - 博客园](https://www.cnblogs.com/LoyenWang/p/12249106.html)
 
@@ -281,3 +412,7 @@ cat /proc/sys/kernel/sched_rt_runtime_us    # 允许运行时间（微秒）
 [一文搞懂linux进程调度框架 - 知乎](https://zhuanlan.zhihu.com/p/554149581)
 
 [CFS调度时间片计算_cfs 调度周期-CSDN博客](https://blog.csdn.net/qq_23662505/article/details/127566718)
+
+[CFS任务的负载均衡（概述）](http://www.wowotech.net/process_management/load_balance.html)
+
+[进程管理 - 蜗窝科技](http://www.wowotech.net/sort/process_management)
