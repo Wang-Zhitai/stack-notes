@@ -32,7 +32,7 @@ adb pull /data/quectel_debug_log
 
 ## 2.1 kernel
 
-[2-Linux调试手段](./2-Linux调试手段)
+kernel如何增加打印，在《Linux调试手段》文章里有介绍：[2-Linux调试手段](./2-Linux调试手段)
 
 
 
@@ -52,5 +52,7 @@ adb pull /data/quectel_debug_log
 
 ## 2.3 U-Boot
 
+通过查看 RK官方 提供的 SDK 里的 U-Boot 源码可以看到，RK 的 U-Boot 打印 log 用的是 dev_err() 函数，但是实际上 U-Boot 官方也是提供了日志打印相关的宏的
 
+![image-20251217235846197](./assets/image-20251217235846197.png)
 
