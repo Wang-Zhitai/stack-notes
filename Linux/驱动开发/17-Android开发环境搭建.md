@@ -1,22 +1,22 @@
 # Android开发环境搭建
 
-# 交叉编译工具链
+# 1. 交叉编译工具链
 
 1. 在 `Android` 源码目录下，找到存放交叉编译工具的文件夹，一般来说 `SDK` 里存放交叉编译工具的目录都是 `prebuilts` 文件夹：**`/home/wzt/rk3566/android11-dev/prebuilts/gcc/linux-x86/aarch64/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu`**
 
-2. 然后把交叉编译工具装到Ubuntu的启动脚本里：
+2. 然后把交叉编译工具装到 Ubuntu 的启动脚本里：
 
 ```bash
 sudo vim/etc/profile
 ```
 
-3. 在最后一行追加：
+3. 在最后一行追加交叉编译器的路径，这里用哪个就加哪个就行：
 
 ```bash
 export PATH=/home/wzt/rk3566/android11-dev/prebuilts/gcc/linux-x86/aarch64/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu/bin:$PATH
 ```
 
-4. 执行一次
+4. 应用环境变量，随后就可以使用交叉编译器了
 
 ```bash
 source /etc/profile
@@ -24,7 +24,7 @@ source /etc/profile
 
 
 
-# 投屏
+# 2. 投屏
 
 1. 使用 `scrcpy` 可以将 `Android` 的屏幕投屏到电脑上
 2. `scrcpy` 需要使用 `ADB` 功能，所以在使用前需要确保 `Android` 设备插在电脑上是可以用 `ADB` 连接成功的
@@ -39,7 +39,7 @@ source /etc/profile
 
 
 
-# 打开debug串口控制台
+# 3. 打开debug串口控制台
 
 1. 如果默认的串口只能显示，无法回车输入命令，说明没有打开串口控制台，请做如下修改后再次编译烧录：
 
@@ -49,7 +49,9 @@ source /etc/profile
 
 ![image-20251218233927776](./assets/image-20251218233927776.png)
 
-# Android SDK 源码目录结构说明
+
+
+# 4. Android SDK 源码目录结构说明
 
 | 目录名               | 说明                                                         |
 | :------------------- | :----------------------------------------------------------- |
@@ -80,9 +82,7 @@ source /etc/profile
 | **tools**            | 一些特殊工具，譬如 acloud 命令用于连接谷歌云端工作站，apkzlib 用于 apk 打包 |
 | **vendor**           | 厂商定制目录，存放了厂商相关的代码                           |
 
-
-
-## 瑞芯微 (Rockchip) 特有目录
+**瑞芯微 (Rockchip) 特有目录：**
 
 | 目录名             | 说明                                                         |
 | :----------------- | :----------------------------------------------------------- |

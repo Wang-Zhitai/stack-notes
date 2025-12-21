@@ -638,65 +638,41 @@ tar -xvf atk-dlrk3506_linux6.1_release_v1.2.0_20250718.tar.gz
 
 # 4. 配置交叉编译环境
 
-## 4.1 修改系统环境变量法
+## 4.1 修改系统环境变量
 
-1. Linux内核源码是需要指定架构和交叉编译器才能进行编译的
-2. 将交叉编译器路径添加到环境变量，指定交叉编译器前缀，指定目标架构
+1. Linux内核源码是需要指定架构和交叉编译器才能进行编译的，不过有的SDK都将相关指令封装到了 `build.sh` 构建脚本里，不指定也行
+2. 将交叉编译器所在的路径添加到系统环境变量 **`vi /etc/profile`** ：
 
-```shell
-export PATH=/home/wzt/rk3506/prebuilts/gcc/linux-x86/arm/gcc-arm-10.3-2021.07-x86_64-arm-none-linux-gnueabihf/bin:$PATH # 这里的路径指的是自己安装的交叉编译工具链的路径，因人而异，将路径添加到系统环境变量里后就可以输入交叉编译器前缀然后按下TAB就能自动补全了
-
-export PATH=/home/wzt/rk3506/buildroot/output/atk_dlrk3506/host/bin:$PATH
-
-export CROSS_COMPILE=arm-none-linux-gnueabihf- # 这里的前缀就是交叉编译器的bin路径下的交叉编译器的前缀
-export ARCH=arm # 目标架构
+```bash
+# 先执行 vi /etc/profile 然后将下面的路径加入到系统环境变量中，这里的路径指的是自己安装的交叉编译工具链的路径，不同的SDK路径可能也不一样，自己找一下就行，将路径添加到系统环境变量并应用后就可以输入交叉编译器的前缀然后按下TAB就能自动补全了
+export PATH=/home/wzt/rk3506/prebuilts/gcc/linux-x86/arm/gcc-arm-10.3-2021.07-x86_64-arm-none-linux-gnueabihf/bin:$PATH
 ```
 
-4. 应用环境变量 （**注：这样的话交叉编译器就全局生效了，如果不需要全局生效可以在需要生效的地方写个shell脚本单独指定一下 `export CROSS_COMPILE=arm-none-linux-gnueabihf-` 和 `export ARCH=arm`**）：
+3. 应用系统环境变量,使其生效
 
 ```bash
 source /etc/profile
 ```
 
-
-
-## 4.2 使用 `direnv` 智能切换法
-
-1. 用 `direnv`，可以实现进入某个目录的时候自动激活，退出的时候恢复到默认，先安装 `direnv`：
+4. 如果需要指定交叉编译器，可以在每次用之前输入（不建议加入系统环境变量，如果ubuntu里有多个交叉编译器可能会冲突）：
 
 ```bash
-# 安装
-sudo apt install direnv
-
-# 添加到shell配置（~/.bashrc 或 ~/.zshrc）
-echo 'eval "$(direnv hook bash)"' >> ~/.bashrc
-source ~/.bashrc
+# 这里的前缀就是交叉编译器的bin路径下的交叉编译器的前缀，根据自己需要使用的交叉编译器选择前缀
+export CROSS_COMPILE=arm-none-linux-gnueabihf- 
 ```
 
-2. 使用 `direnv`：
+5. 如果需要指定目标平台架构，可以在每次用之前输入（不建议加入系统环境变量，如果需要生成好几种目标架构可能会冲突）：
 
-```bash
-# 1. 在项目目录创建 .envrc 文件
-cd ~/projects/rk3506
-cat > .envrc << 'EOF'
-export PATH=/home/wzt/rk3506/prebuilts/gcc/linux-x86/arm/gcc-arm-10.3-2021.07-x86_64-arm-none-linux-gnueabihf/bin:$PATH
-export CROSS_COMPILE=arm-none-linux-gnueabihf-
+```shell
+ # 目标架构，根据自己要生成的目标平台架构指定即可
 export ARCH=arm
-EOF
-
-# 2. 允许该目录的环境
-direnv allow .
-
-# 3. 进入目录时自动激活，离开时自动恢复
-cd ~/projects/rk3506  # 自动激活
-cd ..                 # 自动恢复
 ```
 
 
 
-## 4.3 在项目配置里直接设置
+## 4.2 在项目配置里直接设置
 
-在项目的 Makefile 中直接覆盖设置，这样的话只要是这个项目就会一直使用该配置：
+在项目的 `Makefile` 中直接覆盖设置，这样的话只要是这个项目就会一直使用该配置，不过这个前缀需要是系统能找到的，需要先在系统环境变量里添加一下相应的交叉编译器路径 `PATH`，参考上一步：
 
 ```makefile
 # 在 Makefile 开头添加
@@ -704,7 +680,7 @@ CROSS_COMPILE ?= arm-none-linux-gnueabihf-
 ARCH ?= arm
 
 # 这样即使环境变量设置了，也会优先使用这里的值
-# 使用 make 时自动使用这些设置
+# 使用 make 时自动使用这些设置，不过这个前缀需要是系统能找到的，需要先在系统环境变量里添加一下相应的交叉编译器路径PATH，参考上一步
 ```
 
 
