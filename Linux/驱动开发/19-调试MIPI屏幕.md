@@ -74,14 +74,14 @@ dsi0: dsi@fe060000 {
 		compatible = "rockchip,rk3568-mipi-dsi";
 		reg = <0x0 0xfe060000 0x0 0x10000>;
 		interrupts = <GIC_SPI 68 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&cru PCLK_DSITX_0>, <&cru HCLK_VO>, <&video_phy0>;
-		clock-names = "pclk", "hclk", "hs_clk";
-		resets = <&cru SRST_P_DSITX_0>;
-		reset-names = "apb";
-		phys = <&video_phy0>;
-		phy-names = "mipi_dphy";
-		power-domains = <&power RK3568_PD_VO>;
-		rockchip,grf = <&grf>;
+		clocks = <&cru PCLK_DSITX_0>, <&cru HCLK_VO>, <&video_phy0>;//时钟来源
+		clock-names = "pclk", "hclk", "hs_clk";//时钟名字
+		resets = <&cru SRST_P_DSITX_0>;//复位句柄
+		reset-names = "apb";//复位名字，必须是apb
+		phys = <&video_phy0>;//DSI所使用的PHY的设备节点
+		phy-names = "mipi_dphy";//使用的PHY的名字
+		power-domains = <&power RK3568_PD_VO>;//电源域句柄
+		rockchip,grf = <&grf>;//SOC的grf寄存器
 		#address-cells = <1>;
 		#size-cells = <0>;
 		status = "disabled";
@@ -135,7 +135,7 @@ rk3566-lubancat-dsi0-ebf410125_1080p.dtsi
 };
 
 &dsi0_in_vp0 {
-	status = "okay";
+	status = "okay";//启用VP0
 };
 
 &dsi0_in_vp1 {
@@ -159,8 +159,8 @@ rk3568-lubancat-dsi0-ebf410125_1080p.dtsi
 
 ```c
 &route_dsi0 {
-	status = "okay";
-	connect = <&vp1_out_dsi0>;
+	status = "okay";//路由DSI0状态
+	connect = <&vp1_out_dsi0>;//连接到DSI0输入虚拟通道1
 };
 
 &video_phy0 {
@@ -170,24 +170,24 @@ rk3568-lubancat-dsi0-ebf410125_1080p.dtsi
 &dsi0_in_vp0 {
 	status = "disabled";
 };
-
+// RK3566有两个VOP，这里是用来链接VOP的，可以选择通道1或者通道0，我们选的是通道1
 &dsi0_in_vp1 {
-	status = "okay";
+	status = "okay";//虚拟通道状态
 };
 
 &dsi0 {
-	status = "okay";
-	power-supply = <&mipi_dsi0_power>;
+	status = "okay";//DSI0控制器状态
+	power-supply = <&mipi_dsi0_power>;//panel的电压要求，可选，regulator配置
 
 	dsi0_panel: panel@0 {
 		compatible = "simple-panel-dsi";
 		reg = <0>;
-		backlight = <&backlight>;
-		reset-gpios = <&gpio0 RK_PC5 GPIO_ACTIVE_LOW>;
+		backlight = <&backlight>;//关联背光节点
+		reset-gpios = <&gpio0 RK_PC5 GPIO_ACTIVE_LOW>;//复位引脚
 
-		enable-delay-ms = <35>;
-		prepare-delay-ms = <6>;
-		reset-delay-ms = <0>;
+		enable-delay-ms = <35>;// panel 开始接收视频数据到显示出第一帧画面所用的时间
+		prepare-delay-ms = <6>;//panel 准备就绪并开始接受视频数据的时间
+		reset-delay-ms = <0>;//
 		init-delay-ms = <20>;
 		unprepare-delay-ms = <0>;
 		disable-delay-ms = <20>;
